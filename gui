@@ -1,1 +1,414 @@
+# gui.py
+import tkinter as tk
+from tkinter import messagebox
+import data
+import logic
+from admin import AdminDashboard
+from moderator import ModeratorDashboard
 
+class KizunaApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Kizuna")
+        self.root.geometry("900x620")
+        self.root.config(bg="#f2f2f2")
+        self.show_login()
+
+    # ─── UTILS ───────────────────────────────────────────────────────────────
+    def clear_window(self):
+        for w in self.root.winfo_children():
+            w.destroy()
+
+    def create_card(self, width=380, height=420):
+        card = tk.Frame(self.root, bg="white", bd=1, relief="solid")
+        card.place(relx=0.5, rely=0.5, anchor="center", width=width, height=height)
+        return card
+
+    def create_sidebar(self, title):
+        sidebar = tk.Frame(self.root, bg="#ffc0cb", width=220)
+        sidebar.pack(side="left", fill="y")
+        sidebar.pack_propagate(False)
+        tk.Label(sidebar, text=title, font=("Segoe UI", 18, "bold"), bg="#ffc0cb").pack(pady=20)
+        return sidebar
+
+    def add_sidebar_btn(self, sidebar, label, cmd):
+        tk.Button(sidebar, text=label, width=22, anchor="w", padx=10,
+                  font=("Segoe UI", 9), bg="#ffc0cb", bd=0, relief="flat",
+                  cursor="hand2", command=cmd).pack(pady=4, padx=8, fill="x")
+
+    def add_placeholder(self, entry, placeholder, is_password=False):
+        entry.placeholder = placeholder
+        entry.is_password = is_password
+        entry.is_showing_placeholder = True
+        entry.config(fg="gray")
+        entry.insert(0, placeholder)
+
+        def on_focus_in(event):
+            if entry.is_showing_placeholder:
+                entry.delete(0, tk.END)
+                entry.config(fg="black")
+                if is_password:
+                    entry.config(show="*")
+                entry.is_showing_placeholder = False
+
+        def on_focus_out(event):
+            if entry.get() == "":
+                entry.insert(0, placeholder)
+                entry.config(fg="gray")
+                if is_password:
+                    entry.config(show="")
+                entry.is_showing_placeholder = True
+
+        entry.bind("<FocusIn>",  on_focus_in)
+        entry.bind("<FocusOut>", on_focus_out)
+
+    def get_entry_value(self, entry):
+        if hasattr(entry, 'is_showing_placeholder') and entry.is_showing_placeholder:
+            return ""
+        return entry.get()
+
+    def make_scrollable(self, parent, bg="#f9f9f9"):
+        canvas = tk.Canvas(parent, bg=bg, bd=0, highlightthickness=0)
+        sb = tk.Scrollbar(parent, orient="vertical", command=canvas.yview)
+        inner = tk.Frame(canvas, bg=bg)
+        inner.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.create_window((0, 0), window=inner, anchor="nw")
+        canvas.configure(yscrollcommand=sb.set)
+        canvas.pack(side="left", fill="both", expand=True)
+        sb.pack(side="right", fill="y")
+        return canvas, inner
+
+    # ─── LOGIN & REGISTER ───────────────────────────────────────────────────
+    def show_login(self):
+        self.clear_window()
+        card = self.create_card()
+
+        tk.Label(card, text="Kizuna", font=("Segoe UI", 24, "bold"), bg="white").pack(pady=30)
+
+        self.login_user = tk.Entry(card, width=30, font=("Segoe UI", 11))
+        self.login_user.pack(pady=5)
+        self.add_placeholder(self.login_user, "Email / Username")
+
+        self.login_pass = tk.Entry(card, width=30, font=("Segoe UI", 11))
+        self.login_pass.pack(pady=5)
+        self.add_placeholder(self.login_pass, "Password", is_password=True)
+
+        self.login_user.bind("<Return>", lambda e: self.login_pass.focus())
+        self.login_pass.bind("<Return>", lambda e: self.login_auth())
+
+        tk.Button(card, text="Login", width=15, bg="#ffc0cb",
+                  font=("Segoe UI", 10, "bold"), command=self.login_auth).pack(pady=15)
+        tk.Button(card, text="New Here? Register", bd=0, bg="white",
+                  fg="blue", cursor="hand2", command=self.show_register).pack()
+
+    def login_auth(self):
+        identifier = self.get_entry_value(self.login_user)
+        password   = self.get_entry_value(self.login_pass)
+
+        for user in data.users.values():
+            if (identifier == user["username"] or identifier == user["email"]) and password == user["password"]:
+                data.login_attempts = 3
+                role = user["role"]
+                if role == "Admin":
+                    AdminDashboard(self.root, user, self).show()
+                elif role == "Moderator":
+                    ModeratorDashboard(self.root, user, self).show()
+                else:
+                    self.show_user_dashboard(user)
+                return
+
+        data.login_attempts -= 1
+        if data.login_attempts > 0:
+            messagebox.showerror("Login Gagal", f"Username atau Password salah\nSisa percobaan: {data.login_attempts}")
+        else:
+            messagebox.showerror("Login Gagal", "Akun terkunci sementara")
+            data.login_attempts = 3
+
+    def show_register(self):
+        self.clear_window()
+        card = self.create_card(420, 500)
+
+        tk.Button(card, text="← Back", bd=0, bg="white", command=self.show_login).pack(anchor="w", padx=10, pady=10)
+        tk.Label(card, text="Kizuna", font=("Segoe UI", 24, "bold"), bg="white").pack(pady=10)
+
+        self.reg_fullname = tk.Entry(card, width=35, font=("Segoe UI", 11))
+        self.reg_fullname.pack(pady=5)
+        self.add_placeholder(self.reg_fullname, "Nama Lengkap")
+
+        self.reg_username = tk.Entry(card, width=35, font=("Segoe UI", 11))
+        self.reg_username.pack(pady=5)
+        self.add_placeholder(self.reg_username, "Username")
+
+        self.reg_email = tk.Entry(card, width=35, font=("Segoe UI", 11))
+        self.reg_email.pack(pady=5)
+        self.add_placeholder(self.reg_email, "Email")
+
+        self.reg_password = tk.Entry(card, width=35, font=("Segoe UI", 11))
+        self.reg_password.pack(pady=5)
+        self.add_placeholder(self.reg_password, "Password", is_password=True)
+
+        self.reg_confirm = tk.Entry(card, width=35, font=("Segoe UI", 11))
+        self.reg_confirm.pack(pady=5)
+        self.add_placeholder(self.reg_confirm, "Konfirmasi Password", is_password=True)
+
+        tk.Button(card, text="Register", width=15, bg="#ffc0cb",
+                  font=("Segoe UI", 10, "bold"), command=self.register).pack(pady=15)
+
+    def register(self):
+        fullname = self.get_entry_value(self.reg_fullname)
+        username = self.get_entry_value(self.reg_username)
+        email    = self.get_entry_value(self.reg_email)
+        password = self.get_entry_value(self.reg_password)
+        confirm  = self.get_entry_value(self.reg_confirm)
+
+        if not fullname or not username or not email:
+            messagebox.showerror("Error", "Semua field wajib diisi")
+            return
+        for u in data.users.values():
+            if username == u["username"]:
+                messagebox.showerror("Error", "Username sudah digunakan")
+                return
+            if email == u["email"]:
+                messagebox.showerror("Error", "Email sudah digunakan")
+                return
+        if len(password) < 8:
+            messagebox.showerror("Error", "Password minimal 8 karakter")
+            return
+        if not any(c.isdigit() for c in password):
+            messagebox.showerror("Error", "Password wajib mengandung angka")
+            return
+        if password != confirm:
+            messagebox.showerror("Error", "Konfirmasi password tidak cocok")
+            return
+
+        data.users[username] = {
+            "fullname": fullname, "username": username,
+            "email": email, "password": password, "role": "User", "bio": "",
+        }
+        messagebox.showinfo("Sukses", "Registrasi berhasil!")
+        self.show_login()
+
+    # ─── USER DASHBOARD ──────────────────────────────────────────────────────
+    def show_user_dashboard(self, user):
+        self.clear_window()
+        data.current_user = user
+
+        PINK, DPINK, WHITE, LIGHT, GRAY, DGRAY = "#ffc0cb", "#e57a8a", "#ffffff", "#f9f9f9", "#888888", "#333333"
+
+        # Top Bar
+        topbar = tk.Frame(self.root, bg=WHITE, height=52)
+        topbar.pack(fill="x", side="top")
+        topbar.pack_propagate(False)
+        tk.Label(topbar, text="Kizuna", font=("Segoe UI", 18, "bold"), bg=WHITE, fg=DPINK).pack(side="left", padx=20)
+        tk.Button(topbar, text="Keluar", font=("Segoe UI", 9), bg=PINK, fg=DGRAY, bd=0, command=self.show_login, cursor="hand2").pack(side="right", padx=16, pady=10)
+        tk.Label(topbar, text=f"👤  {user['fullname']}", font=("Segoe UI", 10), bg=WHITE, fg=GRAY).pack(side="right", padx=4)
+        tk.Frame(self.root, bg="#eeeeee", height=1).pack(fill="x")
+
+        # Bottom Navbar
+        navbar = tk.Frame(self.root, bg=WHITE, height=54)
+        navbar.pack(fill="x", side="bottom")
+        navbar.pack_propagate(False)
+
+        container = tk.Frame(self.root, bg=LIGHT)
+        container.pack(fill="both", expand=True)
+
+        pages, nav_btns = [], []
+
+        # PAGE 0: Beranda
+        page0 = tk.Frame(container, bg=LIGHT)
+        pages.append(page0)
+
+        # Stories Bar inside Beranda
+        story_outer = tk.Frame(page0, bg=WHITE)
+        story_outer.pack(fill="x", padx=16, pady=(10, 4))
+        tk.Label(story_outer, text="Stories", font=("Segoe UI", 9, "bold"), bg=WHITE, fg=DGRAY).pack(anchor="w", padx=8, pady=(6, 2))
+
+        s_canvas = tk.Canvas(story_outer, bg=WHITE, height=70, bd=0, highlightthickness=0)
+        s_inner  = tk.Frame(s_canvas, bg=WHITE)
+        s_inner.bind("<Configure>", lambda e: s_canvas.configure(scrollregion=s_canvas.bbox("all")))
+        s_canvas.create_window((0, 0), window=s_inner, anchor="nw")
+        s_canvas.pack(fill="x", padx=8)
+
+        def refresh_stories():
+            for w in s_inner.winfo_children(): w.destroy()
+            add_box = tk.Frame(s_inner, bg=LIGHT, width=54, height=60, cursor="hand2")
+            add_box.pack(side="left", padx=4); add_box.pack_propagate(False)
+            tk.Label(add_box, text="＋", font=("Segoe UI", 18), bg=PINK, width=3).pack(expand=True)
+            tk.Label(add_box, text="Tambah", font=("Segoe UI", 7), bg=LIGHT).pack()
+            add_box.bind("<Button-1>", lambda e: self.open_add_story(refresh_stories))
+
+            for s in data.stories:
+                sbox = tk.Frame(s_inner, bg=WHITE, width=54, height=60, cursor="hand2", highlightthickness=1, highlightbackground=PINK)
+                sbox.pack(side="left", padx=4); sbox.pack_propagate(False)
+                tk.Label(sbox, text=s["username"][:2].upper(), font=("Segoe UI", 13, "bold"), bg=PINK, fg=DGRAY).pack(expand=True)
+                tk.Label(sbox, text=f"@{s['username'][:6]}", font=("Segoe UI", 7), bg=WHITE, fg=GRAY).pack()
+                sbox.bind("<Button-1>", lambda e, story=s: messagebox.showinfo(f"Story @{story['username']}", f"{story['text']}\n\n🕐 {story['ts']}"))
+
+        refresh_stories()
+
+        # Post Input Frame
+        input_frame = tk.Frame(page0, bg=WHITE, pady=10)
+        input_frame.pack(fill="x", padx=16, pady=(4, 6))
+        self.post_entry = tk.Entry(input_frame, font=("Segoe UI", 11), bd=0, bg=LIGHT)
+        self.post_entry.pack(fill="x", padx=10, pady=6, ipady=4)
+
+        feed_mode, feed_filter = tk.StringVar(value="ranked"), tk.StringVar(value="all")
+
+        post_btn_row = tk.Frame(input_frame, bg=WHITE)
+        post_btn_row.pack(fill="x", padx=10, pady=8)
+
+        tk.Button(post_btn_row, text="  Posting  ", bg=PINK, font=("Segoe UI", 9, "bold"), command=lambda: self.create_post(user, refresh_feed)).pack(side="right")
+
+        list_frame = tk.Frame(page0, bg=LIGHT)
+        list_frame.pack(fill="both", expand=True, padx=16)
+        feed_canvas, self.feed_inner = self.make_scrollable(list_frame, LIGHT)
+        self.canvas_ref = feed_canvas
+
+        def refresh_feed():
+            for w in self.feed_inner.winfo_children(): w.destroy()
+            pool = list(data.posts)
+            if feed_filter.get() == "following":
+                following = data.follows.get(user["username"], set())
+                pool = [p for p in pool if p["username"] in following or p["username"] == user["username"]]
+            pool = sorted(pool, key=logic.feed_score, reverse=True) if feed_mode.get() == "ranked" else list(reversed(pool))
+            
+            if not pool:
+                tk.Label(self.feed_inner, text="Belum ada postingan.", bg=LIGHT, fg=GRAY).pack(pady=30)
+                return
+            for p in pool:
+                self._add_post_card(p, user, WHITE, LIGHT, GRAY, DGRAY, PINK, refresh_feed, refresh_activity)
+
+        refresh_feed()
+
+        # PAGE 1: Chat
+        page1 = tk.Frame(container, bg=LIGHT); pages.append(page1)
+        self._build_chat_page(page1, user, LIGHT, DGRAY, GRAY, PINK, WHITE)
+
+        # PAGE 2: Aktivitas
+        page2 = tk.Frame(container, bg=LIGHT); pages.append(page2)
+        tk.Label(page2, text="Aktivitas", font=("Segoe UI", 14, "bold"), bg=LIGHT, fg=DGRAY).pack(pady=14)
+        act_lf = tk.Frame(page2, bg=LIGHT); act_lf.pack(fill="both", expand=True, padx=16)
+        _, act_inner = self.make_scrollable(act_lf, LIGHT)
+
+        def refresh_activity():
+            for w in act_inner.winfo_children(): w.destroy()
+            found = False
+            for p in reversed(data.posts):
+                if p["username"] == user["username"]:
+                    for liker in p["likes"]:
+                        found = True
+                        row = tk.Frame(act_inner, bg=WHITE, pady=6, padx=10)
+                        row.pack(fill="x", pady=2)
+                        tk.Label(row, text=f"❤️  @{liker} menyukai postinganmu", bg=WHITE).pack(anchor="w")
+            if not found: tk.Label(act_inner, text="Belum ada aktivitas.", bg=LIGHT, fg=GRAY).pack(pady=30)
+
+        # PAGE 3: Profil
+        page3 = tk.Frame(container, bg=LIGHT); pages.append(page3)
+        self._render_profile(page3, user, LIGHT, DGRAY, GRAY, PINK, WHITE)
+
+        # PAGE 4: Komunitas
+        page4 = tk.Frame(container, bg=LIGHT); pages.append(page4)
+        self._build_community_page(page4, user, LIGHT, DGRAY, GRAY, PINK, WHITE)
+
+        # Nav Buttons Binding
+        nav_items = [("🏠", "Beranda", 0), ("💬", "Chat", 1), ("❤️", "Aktivitas", 2), ("👤", "Profil", 3), ("#️⃣", "Komunitas", 4)]
+        for icon, lbl_text, idx in nav_items:
+            btn_frame = tk.Frame(navbar, bg=WHITE, cursor="hand2"); btn_frame.pack(side="left", expand=True, fill="both")
+            ico = tk.Label(btn_frame, text=icon, font=("Segoe UI", 14), bg=WHITE); ico.pack()
+            lbl = tk.Label(btn_frame, text=lbl_text, font=("Segoe UI", 8), bg=WHITE, fg=GRAY); lbl.pack()
+            for w in (btn_frame, ico, lbl):
+                w.bind("<Button-1>", lambda e, i=idx: self.nav_switch(pages, i, nav_btns, PINK, DPINK, refresh_activity))
+            nav_btns.append((btn_frame, ico, lbl))
+
+        self.nav_switch(pages, 0, nav_btns, PINK, DPINK, refresh_activity)
+
+    def nav_switch(self, pages, index, nav_btns, PINK, DPINK, refresh_activity_fn=None):
+        for page in pages: page.pack_forget()
+        pages[index].pack(fill="both", expand=True)
+        if index == 2 and refresh_activity_fn: refresh_activity_fn()
+        for i, (frm, ico, lbl) in enumerate(nav_btns):
+            bg_c = PINK if i == index else WHITE
+            fg_c = "#333" if i == index else "#888"
+            frm.config(bg=bg_c); ico.config(bg=bg_c); lbl.config(bg=bg_c, fg=fg_c)
+
+    def open_add_story(self, refresh_fn):
+        win = tk.Toplevel(self.root); win.geometry("360x200")
+        entry = tk.Text(win, width=40, height=4); entry.pack(pady=10)
+        def submit():
+            text = entry.get("1.0", tk.END).strip()
+            if not text: return
+            filtered, words = logic.content_filter(text)
+            if words: logic.log_violation(data.current_user["username"], words, "Story")
+            data.stories.append({"id": data.next_story_id, "username": data.current_user["username"], "text": filtered, "ts": logic.now_str()})
+            data.next_story_id += 1; win.destroy(); refresh_fn()
+        tk.Button(win, text="Posting Story", bg="#ffc0cb", command=submit).pack()
+
+    def create_post(self, user, refresh_fn):
+        text = self.post_entry.get().strip()
+        if not text: return
+        filtered, words = logic.content_filter(text)
+        if words: logic.log_violation(user["username"], words, "Post")
+        new_post = {"id": data.next_post_id, "username": user["username"], "text": filtered, "likes": [], "comments": [], "ts": logic.now_str()}
+        data.posts.append(new_post)
+        logic.register_hashtags(new_post)
+        data.next_post_id += 1; self.post_entry.delete(0, tk.END); refresh_fn()
+
+    def _add_post_card(self, post, viewer, WHITE, LIGHT, GRAY, DGRAY, PINK, refresh_feed_fn, refresh_activity_fn):
+        card = tk.Frame(self.feed_inner, bg=WHITE, pady=10, padx=12, highlightthickness=1, highlightbackground="#eeeeee")
+        card.pack(fill="x", pady=(0, 8))
+        header = tk.Frame(card, bg=WHITE); header.pack(fill="x")
+        tk.Label(header, text=f"@{post['username']} • {post['ts']}", bg=WHITE, font=("Segoe UI", 10, "bold")).pack(side="left")
+        tk.Label(card, text=post["text"], bg=WHITE, wraplength=500, justify="left").pack(anchor="w", pady=5)
+        
+        # Like Button Logic
+        action_row = tk.Frame(card, bg=WHITE); action_row.pack(fill="x")
+        liked = viewer["username"] in post["likes"]
+        like_btn = tk.Button(action_row, text=f"{'❤️' if liked else '♡'} {len(post['likes'])}", bd=0, bg=WHITE)
+        like_btn.pack(side="left")
+        
+        def toggle_like():
+            if viewer["username"] in post["likes"]: post["likes"].remove(viewer["username"])
+            else: post["likes"].append(viewer["username"])
+            refresh_feed_fn(); refresh_activity_fn()
+        like_btn.config(command=toggle_like)
+
+    def _build_chat_page(self, parent, user, LIGHT, DGRAY, GRAY, PINK, WHITE):
+        self._chat_store = {}
+        self._chat_target = [None]
+        main = tk.Frame(parent, bg=LIGHT); main.pack(fill="both", expand=True)
+        left = tk.Frame(main, bg=WHITE, width=150); left.pack(side="left", fill="y")
+        right = tk.Frame(main, bg=WHITE); right.pack(side="left", fill="both", expand=True)
+        chat_display = tk.Text(right, state="disabled", height=15); chat_display.pack(fill="both", expand=True)
+        chat_entry = tk.Entry(right); chat_entry.pack(fill="x")
+
+        def select_user(uname):
+            self._chat_target[0] = uname
+            chat_display.config(state="normal"); chat_display.delete("1.0", tk.END)
+            for msg in self._chat_store.get(uname, []):
+                chat_display.insert(tk.END, f"{'Kamu' if msg['from'] == user['username'] else uname}: {msg['text']}\n")
+            chat_display.config(state="disabled")
+
+        def send_msg():
+            target = self._chat_target[0]
+            if not target: return
+            text = chat_entry.get().strip()
+            if not text: return
+            self._chat_store.setdefault(target, []).append({"from": user["username"], "text": text})
+            chat_entry.delete(0, tk.END); select_user(target)
+
+        tk.Button(right, text="Kirim", command=send_msg).pack()
+        for uname in data.users:
+            if uname != user["username"]:
+                tk.Button(left, text=f"@{uname}", command=lambda u=uname: select_user(u)).pack(fill="x")
+
+    def _build_community_page(self, parent, user, LIGHT, DGRAY, GRAY, PINK, WHITE):
+        tk.Label(parent, text="Komunitas & Hashtag", font=("Segoe UI", 14, "bold"), bg=LIGHT).pack()
+        # Implementasi sederhana visual list hashtag trending
+        tag_frame = tk.Frame(parent, bg=WHITE); tag_frame.pack(fill="both", expand=True, padx=20)
+        for tag in data.communities.keys():
+            tk.Label(tag_frame, text=f"#{tag}", font=("Segoe UI", 11), bg=WHITE).pack(anchor="w")
+
+    def _render_profile(self, parent, user, LIGHT, DGRAY, GRAY, PINK, WHITE):
+        tk.Label(parent, text=user["fullname"], font=("Segoe UI", 14, "bold"), bg=LIGHT).pack(pady=10)
+        tk.Label(parent, text=f"@{user['username']}", bg=LIGHT, fg=GRAY).pack()
+        tk.Label(parent, text=user["email"], bg=LIGHT).pack()
