@@ -1,1 +1,209 @@
+# admin.py
+import tkinter as tk
+from tkinter import messagebox, simpledialog
+import data
+import logic
 
+class AdminDashboard:
+    def __init__(self, root, user, app_instance):
+        self.root = root
+        self.user = user
+        self.app = app_instance  # Referensi ke objek utama (KizunaApp)
+
+    def show(self):
+        self.app.clear_window()
+        sidebar = self.app.create_sidebar("ADMIN")
+        content = tk.Frame(self.root, bg="white")
+        content.pack(fill="both", expand=True)
+
+        pages = {
+            "home":    self._admin_page_home(content, self.user),
+            "users":   self._admin_page_users(content),
+            "posts":   self._admin_page_mod_list(content, "post"),
+            "stories": self._admin_page_mod_list(content, "story"),
+            "log":     self._admin_page_violation_log(content),
+        }
+
+        def switch_page(name):
+            for p in pages.values():
+                p.pack_forget()
+            pages[name].pack(fill="both", expand=True)
+
+        self.app.add_sidebar_btn(sidebar, "🏠  Beranda",        lambda: switch_page("home"))
+        self.app.add_sidebar_btn(sidebar, "👥  Kelola User",    lambda: switch_page("users"))
+        self.app.add_sidebar_btn(sidebar, "📝  Moderasi Post",  lambda: switch_page("posts"))
+        self.app.add_sidebar_btn(sidebar, "📖  Moderasi Story", lambda: switch_page("stories"))
+        self.app.add_sidebar_btn(sidebar, "🚨  Log Pelanggaran", lambda: switch_page("log"))
+
+        tk.Button(sidebar, text="Logout", bg="tomato", fg="white",
+                  font=("Segoe UI", 9, "bold"), bd=0, cursor="hand2",
+                  command=self.app.show_login).pack(side="bottom", pady=20, padx=20, fill="x")
+
+        switch_page("home")
+
+    def _admin_page_home(self, parent, user):
+        page = tk.Frame(parent, bg="white")
+        tk.Label(page, text=f"Selamat Datang, {user['fullname']} 👑",
+                 font=("Segoe UI", 20, "bold"), bg="white").pack(pady=30)
+        sf = tk.Frame(page, bg="white")
+        sf.pack()
+        for label, fn in [("Total User", lambda: len(data.users)),
+                           ("Total Post",  lambda: len(data.posts)),
+                           ("Total Story", lambda: len(data.stories))]:
+            box = tk.Frame(sf, bg="#ffc0cb", width=140, height=80)
+            box.pack(side="left", padx=16, pady=10)
+            box.pack_propagate(False)
+            tk.Label(box, text=str(fn()), font=("Segoe UI", 26, "bold"),
+                     bg="#ffc0cb").pack(expand=True)
+            tk.Label(box, text=label, font=("Segoe UI", 9), bg="#ffc0cb").pack()
+        return page
+
+    def _admin_page_users(self, parent):
+        page = tk.Frame(parent, bg="#f9f9f9")
+        tk.Label(page, text="Kelola User", font=("Segoe UI", 14, "bold"),
+                 bg="#f9f9f9").pack(pady=10)
+
+        lf = tk.Frame(page, bg="#f9f9f9")
+        lf.pack(fill="both", expand=True, padx=16)
+        _, inner = self.app.make_scrollable(lf)
+
+        def refresh():
+            for w in inner.winfo_children():
+                w.destroy()
+            for col, h in enumerate(["Nama Lengkap", "Username", "Email", "Role", "Aksi"]):
+                tk.Label(inner, text=h, font=("Segoe UI", 9, "bold"),
+                         bg="#ffc0cb", width=16, padx=4, pady=4).grid(
+                             row=0, column=col, padx=1, pady=1)
+
+            for ri, u in enumerate(list(data.users.values()), 1):
+                for ci, val in enumerate([u["fullname"], u["username"], u["email"], u["role"]]):
+                    tk.Label(inner, text=val, font=("Segoe UI", 9), bg="white",
+                             width=16, padx=4, pady=4).grid(row=ri, column=ci, padx=1, pady=1)
+
+                def make_edit(uname=u["username"]):
+                    def do():
+                        new_fn = simpledialog.askstring(
+                            "Edit", "Nama Lengkap baru:",
+                            initialvalue=data.users[uname]["fullname"], parent=self.root)
+                        if new_fn:
+                            data.users[uname]["fullname"] = new_fn
+                            refresh()
+                    return do
+
+                def make_del(uname=u["username"]):
+                    def do():
+                        if uname in ("admin", "moderator"):
+                            messagebox.showerror("Error", "Akun default tidak bisa dihapus")
+                            return
+                        if messagebox.askyesno("Hapus User", f"Hapus user '{uname}'?"):
+                            del data.users[uname]
+                            data.posts = [p for p in data.posts if p["username"] != uname]
+                            data.stories = [s for s in data.stories if s["username"] != uname]
+                            refresh()
+                    return do
+
+                bf = tk.Frame(inner, bg="white")
+                bf.grid(row=ri, column=4, padx=1, pady=1)
+                tk.Button(bf, text="Edit", font=("Segoe UI", 8), bg="#ffe0a0",
+                          bd=0, padx=4, command=make_edit()).pack(side="left", padx=2)
+                tk.Button(bf, text="Hapus", font=("Segoe UI", 8), bg="tomato",
+                          fg="white", bd=0, padx=4, command=make_del()).pack(side="left")
+
+        refresh()
+        return page
+
+    def _admin_page_mod_list(self, parent, kind):
+        title = "Moderasi Postingan" if kind == "post" else "Moderasi Stories"
+        page  = tk.Frame(parent, bg="#f9f9f9")
+        tk.Label(page, text=title, font=("Segoe UI", 14, "bold"),
+                 bg="#f9f9f9").pack(pady=10)
+
+        lf = tk.Frame(page, bg="#f9f9f9")
+        lf.pack(fill="both", expand=True, padx=16)
+        _, inner = self.app.make_scrollable(lf)
+
+        def refresh():
+            for w in inner.winfo_children():
+                w.destroy()
+            items = data.posts if kind == "post" else data.stories
+            if not items:
+                tk.Label(inner, text="Belum ada data.", bg="#f9f9f9",
+                         fg="gray", font=("Segoe UI", 10)).pack(pady=20)
+                return
+            for item in items:
+                row = tk.Frame(inner, bg="white", pady=6, padx=8,
+                               highlightthickness=1, highlightbackground="#eee")
+                row.pack(fill="x", pady=2)
+                tk.Label(row, text=f"@{item['username']}  •  {item['ts']}",
+                         font=("Segoe UI", 8), bg="white", fg="gray").pack(anchor="w")
+                tk.Label(row, text=item["text"], font=("Segoe UI", 10),
+                         bg="white", wraplength=480, justify="left").pack(anchor="w")
+
+                def make_del(iid=item["id"]):
+                    def do():
+                        noun = "postingan" if kind == "post" else "story"
+                        if messagebox.askyesno("Hapus", f"Hapus {noun} ini?"):
+                            if kind == "post":
+                                data.posts = [x for x in data.posts if x["id"] != iid]
+                            else:
+                                data.stories = [x for x in data.stories if x["id"] != iid]
+                            refresh()
+                    return do
+
+                tk.Button(row, text="Hapus", bg="tomato", fg="white",
+                          font=("Segoe UI", 8), bd=0, padx=6,
+                          command=make_del()).pack(anchor="e")
+
+        refresh()
+        return page
+
+    def _admin_page_violation_log(self, parent):
+        page = tk.Frame(parent, bg="#f9f9f9")
+        tk.Label(page, text="Log Pelanggaran Filter", font=("Segoe UI", 14, "bold"),
+                 bg="#f9f9f9").pack(pady=10)
+
+        top_bar = tk.Frame(page, bg="#f9f9f9")
+        top_bar.pack(fill="x", padx=16, pady=(0, 6))
+
+        lf = tk.Frame(page, bg="#f9f9f9")
+        lf.pack(fill="both", expand=True, padx=16, pady=(0, 10))
+        _, inner = self.app.make_scrollable(lf)
+
+        def refresh():
+            for w in inner.winfo_children():
+                w.destroy()
+            headers = ["No", "Username", "Kata Terlarang", "Tipe Konten", "Waktu"]
+            widths  = [4,    14,          16,               12,            16]
+            for ci, (h, wd) in enumerate(zip(headers, widths)):
+                tk.Label(inner, text=h, font=("Segoe UI", 9, "bold"),
+                         bg="#ffc0cb", width=wd, padx=4, pady=5,
+                         relief="flat").grid(row=0, column=ci, padx=1, pady=1, sticky="nsew")
+
+            if not data.violation_log:
+                tk.Label(inner, text="Tidak ada pelanggaran tercatat.",
+                         bg="#f9f9f9", fg="gray",
+                         font=("Segoe UI", 10)).grid(row=1, column=0, columnspan=5, pady=20)
+                return
+
+            for ri, log in enumerate(reversed(data.violation_log), 1):
+                row_bg = "#fff5f5" if ri % 2 == 0 else "white"
+                vals = [str(ri), log["username"], log["kata"], log["tipe"], log["ts"]]
+                for ci, (val, wd) in enumerate(zip(vals, widths)):
+                    tk.Label(inner, text=val, font=("Segoe UI", 9),
+                             bg=row_bg, width=wd, padx=4, pady=4).grid(
+                                 row=ri, column=ci, padx=1, pady=1, sticky="nsew")
+
+        def clear_log():
+            if messagebox.askyesno("Hapus Log", "Hapus semua log pelanggaran?"):
+                data.violation_log.clear()
+                refresh()
+
+        tk.Button(top_bar, text="🗑  Hapus Semua Log", font=("Segoe UI", 9),
+                  bg="tomato", fg="white", bd=0, padx=8, pady=4,
+                  cursor="hand2", command=clear_log).pack(side="right")
+        tk.Button(top_bar, text="↻  Refresh", font=("Segoe UI", 9),
+                  bg="#ffc0cb", bd=0, padx=8, pady=4,
+                  cursor="hand2", command=refresh).pack(side="right", padx=(0, 6))
+
+        refresh()
+        return page
