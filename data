@@ -1,1 +1,39 @@
+# data.py
 
+login_attempts = 3
+current_user = None
+
+# Mock Database Users
+users = {
+    "admin": {
+        "fullname": "Administrator",
+        "username": "admin",
+        "email":    "admin@gmail.com",
+        "password": "admin123",
+        "role":     "Admin",
+        "bio":      "",
+    },
+    "moderator": {
+        "fullname": "Moderator",
+        "username": "moderator",
+        "email":    "mod@gmail.com",
+        "password": "mod12345",
+        "role":     "Moderator",
+        "bio":      "",
+    },
+}
+
+posts = []
+stories = []
+next_post_id = 1
+next_story_id = 1
+next_comment_id = 1
+
+follows = {}       # {username: set(following_usernames)}
+communities = {}   # {hashtag: [post_ids]}
+violation_log = []  # {"username", "kata", "tipe", "ts"}
+
+banned_words = [
+    "anjing", "babi", "bangsat", "kontol",
+    "memek", "tolol", "idiot", "bodoh",
+]
