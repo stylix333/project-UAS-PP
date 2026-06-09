@@ -1,1 +1,57 @@
+# logic.py
+import re
+from datetime import datetime
+import data
 
+def now_str():
+    return datetime.now().strftime("%d %b %Y %H:%M")
+
+def content_filter(text):
+    """Ganti semua kata kasar dengan *** dan return (filtered_text, found_words)."""
+    result = text
+    found = []
+    for word in data.banned_words:
+        pattern = re.compile(re.escape(word), re.IGNORECASE)
+        if pattern.search(result):
+            found.append(word)
+            result = pattern.sub("***", result)
+    return result, found
+
+def log_violation(username, words, tipe):
+    for w in words:
+        data.violation_log.append({
+            "username": username,
+            "kata":     w,
+            "tipe":     tipe,
+            "ts":       now_str(),
+        })
+
+def feed_score(post):
+    likes = len(post.get("likes", []))
+    comments = len(post.get("comments", []))
+    try:
+        ts = datetime.strptime(post["ts"], "%d %b %Y %H:%M")
+        age_hours = max((datetime.now() - ts).total_seconds() / 3600, 0.01)
+        recency = 100 / age_hours
+    except Exception:
+        recency = 0
+    return (likes * 2) + (comments * 3) + recency
+
+def extract_hashtags(text):
+    return [tag.lower() for tag in re.findall(r"#(\w+)", text)]
+
+def register_hashtags(post):
+    for tag in extract_hashtags(post["text"]):
+        data.communities.setdefault(tag, [])
+        if post["id"] not in data.communities[tag]:
+            data.communities[tag].append(post["id"])
+
+def is_following(follower, target):
+    return target in data.follows.get(follower, set())
+
+def toggle_follow(follower, target):
+    data.follows.setdefault(follower, set())
+    if target in data.follows[follower]:
+        data.follows[follower].discard(target)
+    else:
+        data.follows[follower].add(target)
