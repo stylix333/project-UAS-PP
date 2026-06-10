@@ -66,15 +66,27 @@ class KizunaApp:
         return datetime.now().strftime("%d %b %Y %H:%M")
 
     def content_filter(self, text):
-        """Ganti semua kata kasar dengan *** dan return (filtered_text, found_words)."""
-        import re
-        result = text
-        found  = []
-        for word in self.banned_words:
-            pattern = re.compile(re.escape(word), re.IGNORECASE)
-            if pattern.search(result):
-                found.append(word)
-                result = pattern.sub("***", result)
+        result = text          
+        found  = []            
+
+        for kata in self.banned_words:              
+            teks_lower = result.lower()             # Bab 2 - .lower()
+            if kata in teks_lower:                  # Bab 3 - Boolean & operator 'in'
+                found.append(kata)                  # Bab 3 - List .append()
+
+                # Bab 5 - While loop: ganti semua kemunculan (case-insensitive)
+                teks_baru = ""
+                i = 0
+                while i < len(result):              # Bab 5 - While
+                    # Bab 4 - Conditional: cek kecocokan di posisi i
+                    if result[i:i + len(kata)].lower() == kata:
+                        teks_baru += "***"          # Bab 2 - String concatenation
+                        i += len(kata)
+                    else:
+                        teks_baru += result[i]
+                        i += 1
+                result = teks_baru
+
         return result, found
 
     def log_violation(self, username, words, tipe):
@@ -625,7 +637,7 @@ class KizunaApp:
         # post input
         input_frame = tk.Frame(page0, bg=WHITE, pady=10)
         input_frame.pack(fill="x", padx=16, pady=(4, 6))
-        tk.Label(input_frame, text="Apa yang kamu pikirkan? Gunakan #hashtag untuk komunitas",
+        tk.Label(input_frame, text="Apa yang kamu pikirkan? Gunakan #hashtag ",
                  font=("Segoe UI", 9), bg=WHITE, fg=GRAY).pack(anchor="w", padx=10)
 
         self.post_entry = tk.Entry(input_frame, font=("Segoe UI", 11),
@@ -776,7 +788,7 @@ class KizunaApp:
             ("💬", "Chat",       1),
             ("❤️",  "Aktivitas", 2),
             ("👤", "Profil",     3),
-            ("#️⃣",  "Komunitas", 4),
+            ("#️⃣",  "Tagar", 4),
         ]
         for icon, label, idx in nav_items:
             btn_frame = tk.Frame(navbar, bg=WHITE, cursor="hand2")
@@ -1074,7 +1086,7 @@ class KizunaApp:
                       command=lambda u=uname: select_user(u)).pack(fill="x")
 
     def _build_community_page(self, parent, user, LIGHT, DGRAY, GRAY, PINK, WHITE):
-        tk.Label(parent, text="Komunitas & Hashtag", font=("Segoe UI", 14, "bold"),
+        tk.Label(parent, text="Hashtag", font=("Segoe UI", 14, "bold"),
                  bg=LIGHT, fg=DGRAY).pack(pady=14)
 
         top = tk.Frame(parent, bg=LIGHT)
@@ -1192,7 +1204,7 @@ class KizunaApp:
                                key=lambda t: len(self.communities[t]), reverse=True)[0]
             show_tag_posts(first_tag)
         else:
-            tk.Label(post_inner, text="Post dengan #hashtag untuk membuat komunitas!",
+            tk.Label(post_inner, text="Post dengan #hashtag ",
                      font=("Segoe UI", 10), bg=LIGHT, fg=GRAY).pack(pady=30)
 
     def _build_social_connect_page(self, parent, viewer, LIGHT, DGRAY, GRAY, PINK, WHITE):
