@@ -687,30 +687,6 @@ class KizunaApp:
         feed_sb.pack(side="right", fill="y")
         self.canvas_ref = feed_canvas
 
-        def refresh_feed():
-            for w in self.feed_inner.winfo_children():
-                w.destroy()
-            pool = list(self.posts)
-            if feed_filter.get() == "following":
-                following = self.follows.get(user["username"], set())
-                pool = [p for p in pool if p["username"] in following or p["username"] == user["username"]]
-            if feed_mode.get() == "ranked":
-                pool = sorted(pool, key=self.feed_score, reverse=True)
-            else:
-                pool = list(reversed(pool))
-            if not pool:
-                tk.Label(self.feed_inner,
-                         text="Belum ada postingan." if feed_filter.get() == "all"
-                              else "Belum ada postingan dari orang yang kamu ikuti.",
-                         font=("Segoe UI", 10), bg=LIGHT, fg=GRAY).pack(pady=30)
-                return
-            for p in pool:
-                self._add_post_card(p, user, WHITE, LIGHT, GRAY, DGRAY, PINK,
-                                    refresh_feed, refresh_activity)
-
-        refresh_feed()
-        self._refresh_feed = refresh_feed
-
         # ── PAGE 1: Chat ──────────────────────────────────────────────────────
         page1 = tk.Frame(container, bg=LIGHT)
         pages.append(page1)
@@ -759,6 +735,31 @@ class KizunaApp:
         self._refresh_activity = refresh_activity
         refresh_activity()
 
+        def refresh_feed():
+            for w in self.feed_inner.winfo_children():
+                w.destroy()
+            pool = list(self.posts)
+            if feed_filter.get() == "following":
+                following = self.follows.get(user["username"], set())
+                pool = [p for p in pool if p["username"] in following or p["username"] == user["username"]]
+            if feed_mode.get() == "ranked":
+                pool = sorted(pool, key=self.feed_score, reverse=True)
+            else:
+                pool = list(reversed(pool))
+            if not pool:
+                tk.Label(self.feed_inner,
+                         text="Belum ada postingan." if feed_filter.get() == "all"
+                              else "Belum ada postingan dari orang yang kamu ikuti.",
+                         font=("Segoe UI", 10), bg=LIGHT, fg=GRAY).pack(pady=30)
+                return
+            for p in pool:
+                self._add_post_card(p, user, WHITE, LIGHT, GRAY, DGRAY, PINK,
+                                    refresh_feed, refresh_activity)
+
+        refresh_feed()
+        self._refresh_feed = refresh_feed
+
+        
         # ── PAGE 3: Profil ────────────────────────────────────────────────────
         page3 = tk.Frame(container, bg=LIGHT)
         pages.append(page3)
