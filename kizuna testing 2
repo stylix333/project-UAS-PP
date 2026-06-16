@@ -5,6 +5,7 @@ import random
 import math
 import csv
 import os
+import json
 
 
 class KizunaApp:
@@ -17,64 +18,8 @@ class KizunaApp:
         self.login_attempts = 3
         self.current_user   = None
 
-        self.users = {
-            "admin": {
-                "fullname": "Administrator",
-                "username": "admin",
-                "email":    "admin@gmail.com",
-                "password": "admin123",
-                "role":     "Admin",
-                "bio":      "Pengelola platform Kizuna 🛡️",
-            },
-            "moderator": {
-                "fullname": "Moderator",
-                "username": "moderator",
-                "email":    "mod@gmail.com",
-                "password": "mod12345",
-                "role":     "Moderator",
-                "bio":      "Menjaga komunitas tetap aman 🔍",
-            },
-            "rina": {
-                "fullname": "Rina Kusuma",
-                "username": "rina",
-                "email":    "rina@gmail.com",
-                "password": "rina1234",
-                "role":     "User",
-                "bio":      "Suka traveling & kuliner 🌏",
-            },
-            "budi": {
-                "fullname": "Budi Santoso",
-                "username": "budi",
-                "email":    "budi@gmail.com",
-                "password": "budi1234",
-                "role":     "User",
-                "bio":      "Developer & coffee addict ☕",
-            },
-            "sari": {
-                "fullname": "Sari Dewi",
-                "username": "sari",
-                "email":    "sari@gmail.com",
-                "password": "sari1234",
-                "role":     "User",
-                "bio":      "Photography enthusiast 📸",
-            },
-            "dito": {
-                "fullname": "Dito Prasetyo",
-                "username": "dito",
-                "email":    "dito@gmail.com",
-                "password": "dito1234",
-                "role":     "User",
-                "bio":      "Gamer & tech reviewer 🎮",
-            },
-            "maya": {
-                "fullname": "Maya Anggraini",
-                "username": "maya",
-                "email":    "maya@gmail.com",
-                "password": "maya1234",
-                "role":     "User",
-                "bio":      "Penulis & book lover 📚",
-            },
-        }
+        self.users_file = "users.json"
+        self.users = self._load_users()
 
         self.next_post_id    = 1
         self.next_story_id   = 1
@@ -95,6 +40,86 @@ class KizunaApp:
 
         self.show_login()
         self.root.mainloop()
+
+    # ─── USER JSON ──────────────────────────────────────────────────────────
+
+    _DEFAULT_USERS = {
+        "admin": {
+            "fullname": "Administrator",
+            "username": "admin",
+            "email":    "admin@gmail.com",
+            "password": "admin123",
+            "role":     "Admin",
+            "bio":      "Pengelola platform Kizuna 🛡️",
+        },
+        "moderator": {
+            "fullname": "Moderator",
+            "username": "moderator",
+            "email":    "mod@gmail.com",
+            "password": "mod12345",
+            "role":     "Moderator",
+            "bio":      "Menjaga komunitas tetap aman 🔍",
+        },
+        "rina": {
+            "fullname": "Rina Kusuma",
+            "username": "rina",
+            "email":    "rina@gmail.com",
+            "password": "rina1234",
+            "role":     "User",
+            "bio":      "Suka traveling & kuliner 🌏",
+        },
+        "budi": {
+            "fullname": "Budi Santoso",
+            "username": "budi",
+            "email":    "budi@gmail.com",
+            "password": "budi1234",
+            "role":     "User",
+            "bio":      "Developer & coffee addict ☕",
+        },
+        "sari": {
+            "fullname": "Sari Dewi",
+            "username": "sari",
+            "email":    "sari@gmail.com",
+            "password": "sari1234",
+            "role":     "User",
+            "bio":      "Photography enthusiast 📸",
+        },
+        "dito": {
+            "fullname": "Dito Prasetyo",
+            "username": "dito",
+            "email":    "dito@gmail.com",
+            "password": "dito1234",
+            "role":     "User",
+            "bio":      "Gamer & tech reviewer 🎮",
+        },
+        "maya": {
+            "fullname": "Maya Anggraini",
+            "username": "maya",
+            "email":    "maya@gmail.com",
+            "password": "maya1234",
+            "role":     "User",
+            "bio":      "Penulis & book lover 📚",
+        },
+    }
+
+    def _load_users(self):
+        """Baca users dari users.json. Jika tidak ada, buat dari data default."""
+        if os.path.exists(self.users_file):
+            try:
+                with open(self.users_file, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except (json.JSONDecodeError, IOError):
+                pass  # fallback ke default jika file rusak
+        # File belum ada → buat dari default lalu simpan
+        self._save_users(self._DEFAULT_USERS)
+        return dict(self._DEFAULT_USERS)
+
+    def _save_users(self, data=None):
+        """Simpan self.users (atau dict lain) ke users.json."""
+        if data is None:
+            data = self.users
+        with open(self.users_file, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
 
     # ─── DUMMY DATA ─────────────────────────────────────────────────────────
 
@@ -455,6 +480,7 @@ class KizunaApp:
             "fullname": fullname, "username": username,
             "email": email, "password": password, "role": "User", "bio": "",
         }
+        self._save_users()
         messagebox.showinfo("Sukses", "Registrasi berhasil!")
         self.show_login()
 
@@ -2535,6 +2561,7 @@ class KizunaApp:
                     if s["username"] == old_username:
                         s["username"] = new_username
 
+            self._save_users()
             win.destroy()
             self._render_profile(profile_page, user, LIGHT, DGRAY, GRAY, PINK, WHITE,
                                  refresh_feed_fn)
