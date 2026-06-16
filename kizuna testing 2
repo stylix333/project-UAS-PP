@@ -103,19 +103,16 @@ class KizunaApp:
     }
 
     def _load_users(self):
-        """Baca users dari users.json. Jika tidak ada, buat dari data default."""
         if os.path.exists(self.users_file):
             try:
                 with open(self.users_file, "r", encoding="utf-8") as f:
                     return json.load(f)
             except (json.JSONDecodeError, IOError):
-                pass  # fallback ke default jika file rusak
-        # File belum ada → buat dari default lalu simpan
+                pass
         self._save_users(self._DEFAULT_USERS)
         return dict(self._DEFAULT_USERS)
 
     def _save_users(self, data=None):
-        """Simpan self.users (atau dict lain) ke users.json."""
         if data is None:
             data = self.users
         with open(self.users_file, "w", encoding="utf-8") as f:
@@ -522,7 +519,6 @@ class KizunaApp:
         return sidebar
 
     def add_sidebar_btn(self, sidebar, label, cmd):
-    # Separator line (pink gelap)
         tk.Frame(sidebar, bg="#e8a0b0", height=1).pack(fill="x")
         btn = tk.Button(
             sidebar, text=label, width=22, anchor="w", padx=16,
@@ -569,22 +565,349 @@ class KizunaApp:
           command=self.show_login).pack(side="bottom", pady=20, padx=20, fill="x")
         show("home")
 
+    # ─── ADMIN HOME PAGE (ENHANCED) ──────────────────────────────────────────
+
     def _admin_page_home(self, parent, user):
-        page = tk.Frame(parent, bg="white")
-        tk.Label(page, text=f"Selamat Datang, {user['fullname']} 👑",
-                 font=("Segoe UI", 20, "bold"), bg="white").pack(pady=30)
-        sf = tk.Frame(page, bg="white")
-        sf.pack()
-        for label, fn in [("Total User", lambda: len(self.users)),
-                           ("Total Post",  lambda: len(self.posts)),
-                           ("Total Story", lambda: len(self.stories))]:
-            box = tk.Frame(sf, bg="#ffc0cb", width=140, height=80)
-            box.pack(side="left", padx=16, pady=10)
+        PINK  = "#ffc0cb"
+        DPINK = "#e57a8a"
+        WHITE = "#ffffff"
+        LIGHT = "#f9f9f9"
+        GRAY  = "#888888"
+        DGRAY = "#333333"
+
+        page = tk.Frame(parent, bg=LIGHT)
+
+        # ── Top header bar ────────────────────────────────────────────────────
+        hdr = tk.Frame(page, bg=WHITE, pady=10)
+        hdr.pack(fill="x")
+        tk.Label(hdr, text=f"🏠  Selamat Datang, {user['fullname']} 👑",
+                 font=("Segoe UI", 14, "bold"), bg=WHITE, fg=DGRAY).pack(side="left", padx=16)
+        tk.Label(hdr, text=datetime.now().strftime("%A, %d %B %Y"),
+                 font=("Segoe UI", 9), bg=WHITE, fg=GRAY).pack(side="right", padx=16)
+        tk.Frame(page, bg="#eeeeee", height=1).pack(fill="x")
+
+        # ── Outer scrollable area ─────────────────────────────────────────────
+        outer = tk.Frame(page, bg=LIGHT)
+        outer.pack(fill="both", expand=True)
+        _, inner = self.make_scrollable(outer, LIGHT)
+
+        # ── STAT CARDS ROW ────────────────────────────────────────────────────
+        stat_section = tk.Frame(inner, bg=LIGHT)
+        stat_section.pack(fill="x", padx=16, pady=(14, 8))
+
+        total_likes    = sum(len(p["likes"]) for p in self.posts)
+        total_comments = sum(len(p.get("comments", [])) for p in self.posts)
+        violations_cnt = len(self.violation_log)
+
+        stat_items = [
+            ("👥", "Total User",  len(self.users),    "#e3f2fd", "#1565c0"),
+            ("📝", "Total Post",  len(self.posts),    "#fce4ec", "#c62828"),
+            ("📖", "Total Story", len(self.stories),  "#f3e5f5", "#6a1b9a"),
+            ("❤️",  "Total Like",  total_likes,        "#fff3e0", "#e65100"),
+            ("💬", "Komentar",    total_comments,     "#e8f5e9", "#2e7d32"),
+            ("🚨", "Pelanggaran", violations_cnt,     "#ffebee", "#b71c1c"),
+        ]
+        cards_row = tk.Frame(stat_section, bg=LIGHT)
+        cards_row.pack(anchor="w")
+        for icon, label, val, bg_col, fg_col in stat_items:
+            box = tk.Frame(cards_row, bg=bg_col, width=100, height=72,
+                           highlightthickness=1, highlightbackground="#ddd")
+            box.pack(side="left", padx=4)
             box.pack_propagate(False)
-            tk.Label(box, text=str(fn()), font=("Segoe UI", 26, "bold"),
-                     bg="#ffc0cb").pack(expand=True)
-            tk.Label(box, text=label, font=("Segoe UI", 9), bg="#ffc0cb").pack()
+            tk.Label(box, text=icon, font=("Segoe UI", 13), bg=bg_col).pack(pady=(8, 0))
+            tk.Label(box, text=str(val), font=("Segoe UI", 13, "bold"),
+                     bg=bg_col, fg=fg_col).pack()
+            tk.Label(box, text=label, font=("Segoe UI", 7), bg=bg_col, fg=GRAY).pack()
+
+        tk.Frame(inner, bg="#eeeeee", height=1).pack(fill="x", padx=16, pady=(4, 0))
+
+        # ── TWO-COLUMN LAYOUT: Feed + Sidebar ────────────────────────────────
+        body = tk.Frame(inner, bg=LIGHT)
+        body.pack(fill="both", expand=True, padx=16, pady=10)
+
+        # Left: post feed
+        left_col = tk.Frame(body, bg=LIGHT)
+        left_col.pack(side="left", fill="both", expand=True, padx=(0, 10))
+
+        # Feed header with filter controls
+        feed_hdr = tk.Frame(left_col, bg=WHITE, pady=8, padx=10,
+                            highlightthickness=1, highlightbackground="#eee")
+        feed_hdr.pack(fill="x", pady=(0, 6))
+
+        feed_mode = tk.StringVar(value="ranked")
+        feed_user_filter = tk.StringVar(value="all")
+
+        tk.Label(feed_hdr, text="📰  Feed Semua Postingan",
+                 font=("Segoe UI", 11, "bold"), bg=WHITE, fg=DGRAY).pack(side="left")
+
+        ctrl_row = tk.Frame(feed_hdr, bg=WHITE)
+        ctrl_row.pack(side="right")
+
+        # User filter dropdown (simple cycle button)
+        user_filter_var = tk.StringVar(value="🌐 Semua")
+
+        def cycle_user_filter():
+            current = feed_user_filter.get()
+            users_list = [u for u in self.users if u not in ("admin", "moderator")]
+            if current == "all":
+                if users_list:
+                    feed_user_filter.set(users_list[0])
+                    user_filter_var.set(f"@{users_list[0]}")
+            else:
+                idx = users_list.index(current) if current in users_list else -1
+                if idx + 1 < len(users_list):
+                    nxt = users_list[idx + 1]
+                    feed_user_filter.set(nxt)
+                    user_filter_var.set(f"@{nxt}")
+                else:
+                    feed_user_filter.set("all")
+                    user_filter_var.set("🌐 Semua")
+            refresh_feed()
+
+        def toggle_mode():
+            if feed_mode.get() == "ranked":
+                feed_mode.set("recent")
+                mode_btn.config(text="📅 Terbaru")
+            else:
+                feed_mode.set("ranked")
+                mode_btn.config(text="🔥 Terpopuler")
+            refresh_feed()
+
+        tk.Button(ctrl_row, textvariable=user_filter_var, font=("Segoe UI", 8),
+                  bg=LIGHT, fg=DGRAY, bd=1, relief="solid", padx=6, pady=2,
+                  cursor="hand2", command=cycle_user_filter).pack(side="left", padx=(0, 4))
+
+        mode_btn = tk.Button(ctrl_row, text="🔥 Terpopuler", font=("Segoe UI", 8),
+                             bg=LIGHT, fg=DGRAY, bd=1, relief="solid", padx=6, pady=2,
+                             cursor="hand2", command=toggle_mode)
+        mode_btn.pack(side="left")
+
+        # Feed scroll area
+        feed_scroll_frame = tk.Frame(left_col, bg=LIGHT)
+        feed_scroll_frame.pack(fill="both", expand=True)
+
+        feed_canvas = tk.Canvas(feed_scroll_frame, bg=LIGHT, bd=0, highlightthickness=0)
+        feed_sb     = tk.Scrollbar(feed_scroll_frame, orient="vertical", command=feed_canvas.yview)
+        feed_inner  = tk.Frame(feed_canvas, bg=LIGHT)
+        feed_inner.bind("<Configure>",
+            lambda e: feed_canvas.configure(scrollregion=feed_canvas.bbox("all")))
+        feed_win = feed_canvas.create_window((0, 0), window=feed_inner, anchor="nw")
+        feed_canvas.configure(yscrollcommand=feed_sb.set)
+        feed_canvas.bind("<Configure>",
+                         lambda e: feed_canvas.itemconfig(feed_win, width=e.width))
+        feed_canvas.pack(side="left", fill="both", expand=True)
+        feed_sb.pack(side="right", fill="y")
+
+        def refresh_feed():
+            for w in feed_inner.winfo_children():
+                w.destroy()
+            pool = list(self.posts)
+            if feed_user_filter.get() != "all":
+                pool = [p for p in pool if p["username"] == feed_user_filter.get()]
+            if feed_mode.get() == "ranked":
+                pool = sorted(pool, key=self.feed_score, reverse=True)
+            else:
+                pool = list(reversed(pool))
+            if not pool:
+                tk.Label(feed_inner, text="Tidak ada postingan.",
+                         font=("Segoe UI", 10), bg=LIGHT, fg=GRAY).pack(pady=30)
+                return
+            for p in pool:
+                self._admin_post_card(p, feed_inner, WHITE, LIGHT, GRAY, DGRAY, PINK, refresh_feed)
+
+        refresh_feed()
+
+        # Right sidebar
+        right_col = tk.Frame(body, bg=LIGHT, width=200)
+        right_col.pack(side="left", fill="y")
+        right_col.pack_propagate(False)
+
+        # ── Active users widget ───────────────────────────────────────────────
+        au_box = tk.Frame(right_col, bg=WHITE, highlightthickness=1, highlightbackground="#eee")
+        au_box.pack(fill="x", pady=(0, 8))
+        tk.Label(au_box, text="👥  Daftar User", font=("Segoe UI", 10, "bold"),
+                 bg=WHITE, fg=DGRAY).pack(anchor="w", padx=10, pady=(8, 4))
+        tk.Frame(au_box, bg="#eee", height=1).pack(fill="x")
+
+        regular_users = [(uname, u) for uname, u in self.users.items()
+                         if u.get("role", "User") == "User"]
+        for uname, u in regular_users:
+            urow = tk.Frame(au_box, bg=WHITE, cursor="hand2")
+            urow.pack(fill="x", padx=8, pady=3)
+            initials = "".join(w[0].upper() for w in u["fullname"].split()[:2])
+            tk.Label(urow, text=initials, font=("Segoe UI", 8, "bold"),
+                     bg=PINK, fg=DGRAY, width=3).pack(side="left")
+            info_f = tk.Frame(urow, bg=WHITE)
+            info_f.pack(side="left", padx=6, fill="x", expand=True)
+            tk.Label(info_f, text=u["fullname"], font=("Segoe UI", 8, "bold"),
+                     bg=WHITE, fg=DGRAY).pack(anchor="w")
+            u_post_cnt = len([p for p in self.posts if p["username"] == uname])
+            tk.Label(info_f, text=f"@{uname}  •  {u_post_cnt} post",
+                     font=("Segoe UI", 7), bg=WHITE, fg=GRAY).pack(anchor="w")
+
+        # ── Top hashtags widget ───────────────────────────────────────────────
+        ht_box = tk.Frame(right_col, bg=WHITE, highlightthickness=1, highlightbackground="#eee")
+        ht_box.pack(fill="x", pady=(0, 8))
+        tk.Label(ht_box, text="#️⃣  Trending Hashtag", font=("Segoe UI", 10, "bold"),
+                 bg=WHITE, fg=DGRAY).pack(anchor="w", padx=10, pady=(8, 4))
+        tk.Frame(ht_box, bg="#eee", height=1).pack(fill="x")
+
+        tag_colors = ["#e57a8a", "#f4a261", "#2ec4b6", "#a8dadc", "#457b9d"]
+        sorted_tags = sorted(self.communities.keys(),
+                             key=lambda t: len(self.communities[t]), reverse=True)
+        for idx, tag in enumerate(sorted_tags[:5]):
+            count = len(self.communities[tag])
+            col   = tag_colors[idx % len(tag_colors)]
+            trow  = tk.Frame(ht_box, bg=WHITE)
+            trow.pack(fill="x", padx=10, pady=3)
+            tk.Label(trow, text=f"#{tag}", font=("Segoe UI", 9, "bold"),
+                     bg=WHITE, fg=col).pack(side="left")
+            tk.Label(trow, text=f"{count} post", font=("Segoe UI", 8),
+                     bg=WHITE, fg=GRAY).pack(side="right")
+
+        # ── Recent violations widget ──────────────────────────────────────────
+        viol_box = tk.Frame(right_col, bg=WHITE, highlightthickness=1, highlightbackground="#eee")
+        viol_box.pack(fill="x")
+        tk.Label(viol_box, text="🚨  Pelanggaran Terbaru", font=("Segoe UI", 10, "bold"),
+                 bg=WHITE, fg=DGRAY).pack(anchor="w", padx=10, pady=(8, 4))
+        tk.Frame(viol_box, bg="#eee", height=1).pack(fill="x")
+
+        recent_viols = list(reversed(self.violation_log))[:5]
+        if not recent_viols:
+            tk.Label(viol_box, text="Tidak ada pelanggaran.", font=("Segoe UI", 8),
+                     bg=WHITE, fg=GRAY).pack(padx=10, pady=6, anchor="w")
+        else:
+            for log in recent_viols:
+                vrow = tk.Frame(viol_box, bg=WHITE)
+                vrow.pack(fill="x", padx=10, pady=3)
+                tk.Label(vrow, text=f"@{log['username']}",
+                         font=("Segoe UI", 8, "bold"), bg=WHITE, fg=DGRAY).pack(side="left")
+                tk.Label(vrow, text=log["kata"],
+                         font=("Segoe UI", 7), bg="#fce4ec", fg="#c62828",
+                         padx=3).pack(side="right")
+
+        tk.Frame(viol_box, bg=LIGHT, height=8).pack()
+
         return page
+
+    # ─── ADMIN POST CARD (for home feed) ─────────────────────────────────────
+
+    def _admin_post_card(self, post, feed_inner, WHITE, LIGHT, GRAY, DGRAY, PINK, refresh_fn):
+        card = tk.Frame(feed_inner, bg=WHITE, pady=10, padx=12,
+                        highlightthickness=1, highlightbackground="#eeeeee")
+        card.pack(fill="x", pady=(0, 6))
+
+        # Header row
+        header = tk.Frame(card, bg=WHITE)
+        header.pack(fill="x")
+
+        u_data   = self.users.get(post["username"], {})
+        fullname = u_data.get("fullname", post["username"])
+        initials = "".join(w[0].upper() for w in fullname.split()[:2])
+
+        tk.Label(header, text=initials, font=("Segoe UI", 10, "bold"),
+                 bg=PINK, fg=DGRAY, width=3).pack(side="left")
+        tk.Label(header, text=f"  {fullname}",
+                 font=("Segoe UI", 10, "bold"), bg=WHITE, fg=DGRAY).pack(side="left")
+        tk.Label(header, text=f"  @{post['username']}",
+                 font=("Segoe UI", 9), bg=WHITE, fg=GRAY).pack(side="left")
+        ts_display = post["ts"] + ("  ✏️" if post.get("edited") else "")
+        tk.Label(header, text=ts_display, font=("Segoe UI", 8),
+                 bg=WHITE, fg=GRAY).pack(side="left", padx=6)
+
+        # Stats badges on the right
+        stats_f = tk.Frame(header, bg=WHITE)
+        stats_f.pack(side="right")
+        score = self.feed_score(post)
+        tk.Label(stats_f, text=f"🔥 {score:.0f}",
+                 font=("Segoe UI", 8), bg="#fff3e0", fg="#e65100", padx=4).pack(side="left", padx=2)
+        tk.Label(stats_f, text=f"❤️ {len(post['likes'])}",
+                 font=("Segoe UI", 8), bg="#fce4ec", fg="#c62828", padx=4).pack(side="left", padx=2)
+        tk.Label(stats_f, text=f"💬 {len(post.get('comments', []))}",
+                 font=("Segoe UI", 8), bg="#e8f5e9", fg="#2e7d32", padx=4).pack(side="left", padx=2)
+
+        # Post text
+        tk.Label(card, text=post["text"], font=("Segoe UI", 10),
+                 bg=WHITE, fg=DGRAY, wraplength=380, justify="left").pack(
+                     anchor="w", pady=(6, 4))
+
+        # Hashtag chips
+        tags = self.extract_hashtags(post["text"])
+        if tags:
+            tag_row = tk.Frame(card, bg=WHITE)
+            tag_row.pack(anchor="w", pady=(0, 4))
+            for tag in tags:
+                tk.Label(tag_row, text=f"#{tag}", font=("Segoe UI", 7),
+                         bg="#e3f2fd", fg="#1565c0", padx=3, pady=1).pack(
+                             side="left", padx=2)
+
+        # Who liked (up to 3 avatars)
+        if post["likes"]:
+            like_row = tk.Frame(card, bg=WHITE)
+            like_row.pack(anchor="w", pady=(0, 4))
+            tk.Label(like_row, text="Disukai oleh:", font=("Segoe UI", 7),
+                     bg=WHITE, fg=GRAY).pack(side="left")
+            for liker in post["likes"][:4]:
+                li = self.users.get(liker, {})
+                li_init = "".join(w[0].upper() for w in li.get("fullname", liker).split()[:2])
+                tk.Label(like_row, text=li_init, font=("Segoe UI", 7, "bold"),
+                         bg="#fce4ec", fg="#c62828", padx=3).pack(side="left", padx=1)
+            if len(post["likes"]) > 4:
+                tk.Label(like_row, text=f"+{len(post['likes'])-4} lainnya",
+                         font=("Segoe UI", 7), bg=WHITE, fg=GRAY).pack(side="left", padx=2)
+
+        # Admin action buttons
+        act_row = tk.Frame(card, bg=WHITE)
+        act_row.pack(anchor="e", fill="x")
+
+        # Preview comments button
+        def open_comment_preview(p=post):
+            win = tk.Toplevel(self.root)
+            win.title(f"Komentar — Post @{p['username']}")
+            win.geometry("400x300")
+            win.config(bg=WHITE)
+            tk.Label(win, text=f"💬 Komentar ({len(p.get('comments',[]))})",
+                     font=("Segoe UI", 11, "bold"), bg=WHITE).pack(pady=8)
+            lf = tk.Frame(win, bg=WHITE)
+            lf.pack(fill="both", expand=True, padx=12)
+            _, ci = self.make_scrollable(lf, WHITE)
+            if not p.get("comments"):
+                tk.Label(ci, text="Belum ada komentar.", font=("Segoe UI", 9),
+                         bg=WHITE, fg=GRAY).pack(pady=12)
+            else:
+                for cm in p["comments"]:
+                    row = tk.Frame(ci, bg=LIGHT, pady=5, padx=8,
+                                   highlightthickness=1, highlightbackground="#eee")
+                    row.pack(fill="x", pady=2)
+                    tk.Label(row, text=f"@{cm['username']}  •  {cm['ts']}",
+                             font=("Segoe UI", 7), bg=LIGHT, fg=GRAY).pack(anchor="w")
+                    tk.Label(row, text=cm["text"], font=("Segoe UI", 9),
+                             bg=LIGHT, wraplength=340, justify="left").pack(anchor="w")
+
+        def make_warn(pid=post["id"], uname=post["username"]):
+            def do():
+                messagebox.showwarning("Peringatan Dikirim",
+                    f"Peringatan telah dikirim ke @{uname}.\nPost ID: {pid}")
+                self.log_violation(uname, ["[admin-warning]"], "Post (Peringatan Admin)")
+            return do
+
+        def make_del(pid=post["id"]):
+            def do():
+                if messagebox.askyesno("Hapus Post", "Hapus postingan ini?"):
+                    self.unregister_hashtags_for_post(pid)
+                    self.posts = [x for x in self.posts if x["id"] != pid]
+                    refresh_fn()
+            return do
+
+        tk.Button(act_row, text="💬 Lihat Komentar", font=("Segoe UI", 8),
+                  bg=LIGHT, fg=DGRAY, bd=1, relief="solid", padx=6, pady=2,
+                  cursor="hand2", command=open_comment_preview).pack(side="left", padx=(0, 4))
+        tk.Button(act_row, text="⚠️ Peringatkan", font=("Segoe UI", 8),
+                  bg="#fff3cd", fg="#856404", bd=1, relief="solid", padx=6, pady=2,
+                  cursor="hand2", command=make_warn()).pack(side="left", padx=(0, 4))
+        tk.Button(act_row, text="🗑 Hapus", font=("Segoe UI", 8, "bold"),
+                  bg="tomato", fg="white", bd=0, padx=8, pady=2,
+                  cursor="hand2", command=make_del()).pack(side="left")
 
     # ─── ANALYTICS DASHBOARD ─────────────────────────────────────────────────
 
@@ -1087,7 +1410,7 @@ class KizunaApp:
         refresh()
         return page
 
-    # ─── MODERATOR DASHBOARD (user-style UI) ─────────────────────────────────
+    # ─── MODERATOR DASHBOARD ─────────────────────────────────────────────────
 
     def show_moderator_dashboard(self, user):
         self.clear_window()
@@ -1100,7 +1423,6 @@ class KizunaApp:
         GRAY  = "#888888"
         DGRAY = "#333333"
 
-        # ── Top bar ──────────────────────────────────────────────────────────
         topbar = tk.Frame(self.root, bg=WHITE, height=52)
         topbar.pack(fill="x", side="top")
         topbar.pack_propagate(False)
@@ -1115,7 +1437,6 @@ class KizunaApp:
                  font=("Segoe UI", 10), bg=WHITE, fg=GRAY).pack(side="right", padx=4)
         tk.Frame(self.root, bg="#eeeeee", height=1).pack(fill="x")
 
-        # ── Bottom navbar ─────────────────────────────────────────────────────
         navbar = tk.Frame(self.root, bg=WHITE, height=54)
         navbar.pack(fill="x", side="bottom")
         navbar.pack_propagate(False)
@@ -1127,32 +1448,26 @@ class KizunaApp:
         pages    = []
         nav_btns = []
 
-        # ── PAGE 0: Review Post ───────────────────────────────────────────────
         page0 = tk.Frame(container, bg=LIGHT)
         pages.append(page0)
         self._build_mod_post_page(page0, user, LIGHT, DGRAY, GRAY, PINK, WHITE)
 
-        # ── PAGE 1: Review Story ──────────────────────────────────────────────
         page1 = tk.Frame(container, bg=LIGHT)
         pages.append(page1)
         self._build_mod_story_page(page1, user, LIGHT, DGRAY, GRAY, PINK, WHITE)
 
-        # ── PAGE 2: Hashtag ───────────────────────────────────────────────────
         page2 = tk.Frame(container, bg=LIGHT)
         pages.append(page2)
         self._build_community_page(page2, user, LIGHT, DGRAY, GRAY, PINK, WHITE)
 
-        # ── PAGE 3: Log Pelanggaran ───────────────────────────────────────────
         page3 = tk.Frame(container, bg=LIGHT)
         pages.append(page3)
         self._build_mod_violation_page(page3, LIGHT, DGRAY, GRAY, PINK, WHITE)
 
-        # ── PAGE 4: Analitik ──────────────────────────────────────────────────
         page4 = tk.Frame(container, bg=LIGHT)
         pages.append(page4)
         self._build_mod_analytics_page(page4, LIGHT, DGRAY, GRAY, PINK, WHITE)
 
-        # ── Nav items ─────────────────────────────────────────────────────────
         nav_items = [
             ("📝", "Review Post",  0),
             ("📖", "Review Story", 1),
@@ -1187,7 +1502,6 @@ class KizunaApp:
     # ─── MOD: REVIEW POST PAGE ────────────────────────────────────────────────
 
     def _build_mod_post_page(self, parent, user, LIGHT, DGRAY, GRAY, PINK, WHITE):
-        # Header
         hdr = tk.Frame(parent, bg=WHITE, pady=10)
         hdr.pack(fill="x")
         tk.Label(hdr, text="📝  Review Postingan",
@@ -1208,14 +1522,12 @@ class KizunaApp:
                 tk.Label(inner, text="Tidak ada postingan.", bg=LIGHT, fg=GRAY,
                          font=("Segoe UI", 10)).pack(pady=30)
                 return
-            # sort by newest
             items = sorted(self.posts, key=lambda p: p.get("id", 0), reverse=True)
             for p in items:
                 card = tk.Frame(inner, bg=WHITE, pady=10, padx=12,
                                 highlightthickness=1, highlightbackground="#eeeeee")
                 card.pack(fill="x", pady=(0, 6))
 
-                # Header row
                 top = tk.Frame(card, bg=WHITE)
                 top.pack(fill="x")
                 u_data   = self.users.get(p["username"], {})
@@ -1228,7 +1540,6 @@ class KizunaApp:
                 tk.Label(top, text=p["ts"] + (" ✏️" if p.get("edited") else ""),
                          font=("Segoe UI", 8), bg=WHITE, fg=GRAY).pack(side="left", padx=6)
 
-                # Stats badge
                 stats_f = tk.Frame(top, bg=WHITE)
                 stats_f.pack(side="right")
                 tk.Label(stats_f, text=f"❤️ {len(p['likes'])}",
@@ -1239,12 +1550,10 @@ class KizunaApp:
                 tk.Label(stats_f, text=f"🔥 {score:.0f}",
                          font=("Segoe UI", 8), bg="#fff3e0", fg="#e65100", padx=4).pack(side="left", padx=2)
 
-                # Post text
                 tk.Label(card, text=p["text"], font=("Segoe UI", 10),
                          bg=WHITE, fg=DGRAY, wraplength=560, justify="left").pack(
                              anchor="w", pady=(8, 6))
 
-                # Hashtag chips
                 tags = self.extract_hashtags(p["text"])
                 if tags:
                     tag_row = tk.Frame(card, bg=WHITE)
@@ -1254,7 +1563,6 @@ class KizunaApp:
                                  bg="#e3f2fd", fg="#1565c0", padx=4, pady=1).pack(
                                      side="left", padx=2)
 
-                # Action buttons
                 act = tk.Frame(card, bg=WHITE)
                 act.pack(anchor="e")
 
@@ -1428,7 +1736,6 @@ class KizunaApp:
         outer.pack(fill="both", expand=True)
         _, inner = self.make_scrollable(outer, LIGHT)
 
-        # Summary cards
         cards_wrap = tk.Frame(inner, bg=LIGHT)
         cards_wrap.pack(fill="x", padx=16, pady=14)
         tk.Label(cards_wrap, text="Ringkasan Platform",
@@ -1458,7 +1765,6 @@ class KizunaApp:
 
         tk.Frame(inner, bg="#eeeeee", height=1).pack(fill="x", padx=16, pady=8)
 
-        # Top posts
         sec = tk.Frame(inner, bg=LIGHT)
         sec.pack(fill="x", padx=16, pady=(0, 8))
         tk.Label(sec, text="🔥  Top Post Engagement",
@@ -1496,7 +1802,6 @@ class KizunaApp:
 
         tk.Frame(inner, bg="#eeeeee", height=1).pack(fill="x", padx=16, pady=8)
 
-        # Top hashtags
         sec2 = tk.Frame(inner, bg=LIGHT)
         sec2.pack(fill="x", padx=16, pady=(0, 14))
         tk.Label(sec2, text="#️⃣  Trending Hashtag",
@@ -1761,7 +2066,6 @@ class KizunaApp:
         pages.append(page4)
         self._render_profile(page4, user, LIGHT, DGRAY, GRAY, PINK, WHITE, refresh_feed)
 
-        # ── Nav buttons ────────────────────────────────────────────────────────
         nav_items = [
             ("🏠", "Beranda",    0),
             ("#️⃣",  "Tagar",    1),
@@ -2338,7 +2642,6 @@ class KizunaApp:
         body_frame.pack(fill="both", expand=True)
         body_canvas, body_inner = self.make_scrollable(body_frame, LIGHT)
 
-        # Avatar
         av = tk.Frame(body_inner, bg=LIGHT)
         av.pack(pady=16)
         initials = "".join(w[0].upper() for w in user["fullname"].split()[:2])
@@ -2355,7 +2658,6 @@ class KizunaApp:
         tk.Label(body_inner, text=bio, font=("Segoe UI", 9, "italic"),
                  bg=LIGHT, fg=GRAY).pack(pady=4)
 
-        # Stats — centered via wrapper
         stats_wrapper = tk.Frame(body_inner, bg=LIGHT)
         stats_wrapper.pack(pady=6)
         stats_frame = tk.Frame(stats_wrapper, bg=LIGHT)
