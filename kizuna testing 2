@@ -514,23 +514,30 @@ class KizunaApp:
     # ─── SIDEBAR HELPER ──────────────────────────────────────────────────────
 
     def create_sidebar(self, title):
-        sidebar = tk.Frame(self.root, bg="#ffc0cb", width=220)
+        sidebar = tk.Frame(self.root, bg="#ffc0cb", width=255)
         sidebar.pack(side="left", fill="y")
         sidebar.pack_propagate(False)
-        tk.Label(sidebar, text=title, font=("Segoe UI", 18, "bold"),
-                 bg="#ffc0cb").pack(pady=20)
+        tk.Label(sidebar, text=title, font=("Segoe UI", 28, "bold"),
+             bg="#ffc0cb").pack(pady=(28, 10), anchor="w", padx=16)
         return sidebar
 
     def add_sidebar_btn(self, sidebar, label, cmd):
-        tk.Button(sidebar, text=label, width=22, anchor="w", padx=10,
-                  font=("Segoe UI", 9), bg="#ffc0cb", bd=0, relief="flat",
-                  cursor="hand2", command=cmd).pack(pady=4, padx=8, fill="x")
+    # Separator line (pink gelap)
+        tk.Frame(sidebar, bg="#e8a0b0", height=1).pack(fill="x")
+        btn = tk.Button(
+            sidebar, text=label, width=22, anchor="w", padx=16,
+            font=("Segoe UI", 11,), bg="#f0d0d8", fg="#222222",
+            bd=0, relief="flat", cursor="hand2", command=cmd,
+            activebackground="#e8a0b0", activeforeground="#111111"
+        )
+        btn.pack(fill="x", ipady=10)
+        tk.Frame(sidebar, bg="#e8a0b0", height=1).pack(fill="x")
 
     # ─── ADMIN DASHBOARD ─────────────────────────────────────────────────────
 
     def show_admin_dashboard(self, user):
         self.clear_window()
-        sidebar = self.create_sidebar("ADMIN")
+        sidebar = self.create_sidebar("Admin")
         content = tk.Frame(self.root, bg="white")
         content.pack(fill="both", expand=True)
 
@@ -554,13 +561,12 @@ class KizunaApp:
         self.add_sidebar_btn(sidebar, "👥  Kelola User",         lambda: show("users"))
         self.add_sidebar_btn(sidebar, "📝  Moderasi Post",       lambda: show("posts"))
         self.add_sidebar_btn(sidebar, "📖  Moderasi Story",      lambda: show("stories"))
-        self.add_sidebar_btn(sidebar, "#️⃣   Kelola Hashtag",    lambda: show("hashtags"))
+        self.add_sidebar_btn(sidebar, "      Kelola Hashtag",    lambda: show("hashtags"))
         self.add_sidebar_btn(sidebar, "🚨  Log Pelanggaran",     lambda: show("log"))
 
-        tk.Button(sidebar, text="Logout", bg="tomato", fg="white",
-                  font=("Segoe UI", 9, "bold"), bd=0, cursor="hand2",
-                  command=self.show_login).pack(side="bottom", pady=20, padx=20, fill="x")
-
+        tk.Button(sidebar, text="Logout", bg="#f52a4c", fg="#333333",
+          font=("Segoe UI", 11, "bold"), bd=1, relief="solid", cursor="hand2",
+          command=self.show_login).pack(side="bottom", pady=20, padx=20, fill="x")
         show("home")
 
     def _admin_page_home(self, parent, user):
@@ -595,7 +601,7 @@ class KizunaApp:
         hdr = tk.Frame(page, bg=WHITE, pady=10)
         hdr.pack(fill="x")
         tk.Label(hdr, text="📊  Dashboard Analitik",
-                 font=("Segoe UI", 16, "bold"), bg=WHITE, fg=DGRAY).pack(side="left", padx=16)
+                 font=("Segoe UI", 16,"bold"), bg=WHITE, fg=DGRAY).pack(side="left", padx=16)
 
         btn_bar = tk.Frame(hdr, bg=WHITE)
         btn_bar.pack(side="right", padx=12)
