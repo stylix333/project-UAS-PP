@@ -1061,14 +1061,14 @@ class KizunaApp:
             ("🔥", "Avg Score",   f"{avg_score:.1f}", "#fff8e1", "#f57f17"),
         ]
         for icon, label, val, bg_col, fg_col in summary_items:
-            box = tk.Frame(cards_row, bg=bg_col, width=110, height=72,
+            box = tk.Frame(cards_row, bg=bg_col, width=130, height=100,
                            highlightthickness=1, highlightbackground="#ddd")
-            box.pack(side="left", padx=4)
+            box.pack(side="left", padx=3)
             box.pack_propagate(False)
-            tk.Label(box, text=icon, font=("Segoe UI", 14), bg=bg_col).pack(pady=(8, 0))
+            tk.Label(box, text=icon, font=("Segoe UI", 13), bg=bg_col).pack(pady=(10, 2))
             tk.Label(box, text=str(val), font=("Segoe UI", 13, "bold"),
                      bg=bg_col, fg=fg_col).pack()
-            tk.Label(box, text=label, font=("Segoe UI", 7), bg=bg_col, fg=GRAY).pack()
+            tk.Label(box, text=label, font=("Segoe UI", 8), bg=bg_col, fg=GRAY).pack(pady=(2, 10))
 
         tk.Frame(inner, bg="#eeeeee", height=1).pack(fill="x", padx=16, pady=8)
 
@@ -1894,14 +1894,14 @@ class KizunaApp:
             ("🚨", "Pelanggaran", len(self.violation_log), "#ffebee", "#b71c1c"),
         ]
         for icon, label, val, bg_col, fg_col in summary_items:
-            box = tk.Frame(cards_row, bg=bg_col, width=110, height=72,
+            box = tk.Frame(cards_row, bg=bg_col, width=130, height=100,
                            highlightthickness=1, highlightbackground="#ddd")
-            box.pack(side="left", padx=4)
+            box.pack(side="left", padx=3)
             box.pack_propagate(False)
-            tk.Label(box, text=icon, font=("Segoe UI", 14), bg=bg_col).pack(pady=(8, 0))
+            tk.Label(box, text=icon, font=("Segoe UI", 13), bg=bg_col).pack(pady=(10, 2))
             tk.Label(box, text=str(val), font=("Segoe UI", 13, "bold"),
                      bg=bg_col, fg=fg_col).pack()
-            tk.Label(box, text=label, font=("Segoe UI", 7), bg=bg_col, fg=GRAY).pack()
+            tk.Label(box, text=label, font=("Segoe UI", 8), bg=bg_col, fg=GRAY).pack(pady=(2, 10))
 
         tk.Frame(inner, bg="#eeeeee", height=1).pack(fill="x", padx=16, pady=8)
 
