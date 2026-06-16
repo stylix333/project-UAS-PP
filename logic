@@ -1,57 +1,174 @@
-# logic.py
+"""
+logic.py — Fungsi logika bisnis Kizuna (tanpa tkinter).
+
+Berisi:
+- Utilitas waktu
+- Content filter kata terlarang
+- Logging pelanggaran
+- Perhitungan feed score
+- Manajemen hashtag
+- Manajemen follow
+"""
+
 import re
+import math
 from datetime import datetime
-import data
+
 
 def now_str():
+    """
+    Mengembalikan timestamp saat ini dalam format string.
+
+    Returns:
+        str: Waktu sekarang dalam format "DD Mon YYYY HH:MM".
+    """
     return datetime.now().strftime("%d %b %Y %H:%M")
 
-def content_filter(text):
-    """Ganti semua kata kasar dengan *** dan return (filtered_text, found_words)."""
+
+def content_filter(text, banned_words):
+    """
+    Menyaring teks dari kata-kata terlarang dan menggantinya dengan "***".
+
+    Args:
+        text (str): Teks yang akan disaring.
+        banned_words (list): Daftar kata terlarang.
+
+    Returns:
+        tuple: (teks_hasil (str), daftar_kata_ditemukan (list))
+    """
     result = text
-    found = []
-    for word in data.banned_words:
-        pattern = re.compile(re.escape(word), re.IGNORECASE)
-        if pattern.search(result):
-            found.append(word)
-            result = pattern.sub("***", result)
+    found  = []
+    for kata in banned_words:
+        teks_lower = result.lower()
+        if kata in teks_lower:
+            found.append(kata)
+            teks_baru = ""
+            i = 0
+            while i < len(result):
+                if result[i:i + len(kata)].lower() == kata:
+                    teks_baru += "***"
+                    i += len(kata)
+                else:
+                    teks_baru += result[i]
+                    i += 1
+            result = teks_baru
     return result, found
 
-def log_violation(username, words, tipe):
+
+def log_violation(violation_log, username, words, tipe):
+    """
+    Mencatat pelanggaran konten ke dalam violation_log.
+
+    Args:
+        violation_log (list): List log pelanggaran yang akan diperbarui (in-place).
+        username (str): Username pelanggar.
+        words (list): Daftar kata terlarang yang ditemukan.
+        tipe (str): Jenis konten yang melanggar ("Post", "Komentar", "Story", dsb).
+    """
     for w in words:
-        data.violation_log.append({
+        violation_log.append({
             "username": username,
             "kata":     w,
             "tipe":     tipe,
             "ts":       now_str(),
         })
 
+
 def feed_score(post):
-    likes = len(post.get("likes", []))
+    """
+    Menghitung skor engagement sebuah postingan untuk pengurutan feed.
+
+    Rumus: (jumlah_like × 2) + (jumlah_komentar × 3) + skor_recency
+    Skor recency dihitung dari 10 / log(usia_jam + e).
+
+    Args:
+        post (dict): Data postingan dengan key 'likes', 'comments', 'ts'/'raw_ts'.
+
+    Returns:
+        float: Skor engagement. 0 jika timestamp tidak valid.
+    """
+    likes    = len(post.get("likes", []))
     comments = len(post.get("comments", []))
-    try:
-        ts = datetime.strptime(post["ts"], "%d %b %Y %H:%M")
-        age_hours = max((datetime.now() - ts).total_seconds() / 3600, 0.01)
-        recency = 100 / age_hours
-    except Exception:
-        recency = 0
+    raw_ts   = post.get("raw_ts") or post.get("ts", "")
+    raw_ts   = raw_ts.replace(" (diedit)", "").strip()
+    recency  = 0
+    for fmt in ("%d %b %Y %H:%M", "%d-%m-%Y %H:%M", "%Y-%m-%d %H:%M"):
+        try:
+            ts_dt     = datetime.strptime(raw_ts, fmt)
+            age_hours = max((datetime.now() - ts_dt).total_seconds() / 3600, 0.01)
+            recency   = 10 / math.log(age_hours + math.e)
+            break
+        except ValueError:
+            continue
     return (likes * 2) + (comments * 3) + recency
 
+
 def extract_hashtags(text):
+    """
+    Mengekstrak semua hashtag dari sebuah teks.
+
+    Args:
+        text (str): Teks yang akan diekstrak hashtag-nya.
+
+    Returns:
+        list: Daftar hashtag (huruf kecil, tanpa simbol #).
+    """
     return [tag.lower() for tag in re.findall(r"#(\w+)", text)]
 
-def register_hashtags(post):
+
+def register_hashtags(communities, post):
+    """
+    Mendaftarkan hashtag dari sebuah postingan ke dalam kamus communities.
+
+    Args:
+        communities (dict): Kamus hashtag → list post_id (diperbarui in-place).
+        post (dict): Data postingan dengan key 'text' dan 'id'.
+    """
     for tag in extract_hashtags(post["text"]):
-        data.communities.setdefault(tag, [])
-        if post["id"] not in data.communities[tag]:
-            data.communities[tag].append(post["id"])
+        communities.setdefault(tag, [])
+        if post["id"] not in communities[tag]:
+            communities[tag].append(post["id"])
 
-def is_following(follower, target):
-    return target in data.follows.get(follower, set())
 
-def toggle_follow(follower, target):
-    data.follows.setdefault(follower, set())
-    if target in data.follows[follower]:
-        data.follows[follower].discard(target)
+def unregister_hashtags_for_post(communities, post_id):
+    """
+    Menghapus ID postingan dari semua entri hashtag di communities.
+
+    Args:
+        communities (dict): Kamus hashtag → list post_id (diperbarui in-place).
+        post_id (int): ID postingan yang dihapus.
+    """
+    for tag in list(communities.keys()):
+        if post_id in communities[tag]:
+            communities[tag].remove(post_id)
+
+
+def is_following(follows, follower, target):
+    """
+    Memeriksa apakah seorang pengguna mengikuti pengguna lain.
+
+    Args:
+        follows (dict): Kamus relasi follow {username: set(target_usernames)}.
+        follower (str): Username yang melakukan follow.
+        target (str): Username yang diikuti.
+
+    Returns:
+        bool: True jika follower mengikuti target.
+    """
+    return target in follows.get(follower, set())
+
+
+def toggle_follow(follows, follower, target):
+    """
+    Mengubah status follow antara dua pengguna (follow/unfollow).
+
+    Args:
+        follows (dict): Kamus relasi follow (diperbarui in-place).
+        follower (str): Username yang melakukan aksi.
+        target (str): Username yang dituju.
+    """
+    follows.setdefault(follower, set())
+    if target in follows[follower]:
+        follows[follower].discard(target)
     else:
-        data.follows[follower].add(target)
+        follows[follower].add(target)
