@@ -39,66 +39,6 @@ class KizunaApp:
         self.root.mainloop()
 
     # ─── USER JSON ──────────────────────────────────────────────────────────
-
-    _DEFAULT_USERS = {
-        "admin": {
-            "fullname": "Administrator",
-            "username": "admin",
-            "email":    "admin@gmail.com",
-            "password": "admin123",
-            "role":     "Admin",
-            "bio":      "Pengelola platform Kizuna 🛡️",
-        },
-        "moderator": {
-            "fullname": "Moderator",
-            "username": "moderator",
-            "email":    "mod@gmail.com",
-            "password": "mod12345",
-            "role":     "Moderator",
-            "bio":      "Menjaga komunitas tetap aman 🔍",
-        },
-        "rina": {
-            "fullname": "Rina Kusuma",
-            "username": "rina",
-            "email":    "rina@gmail.com",
-            "password": "rina1234",
-            "role":     "User",
-            "bio":      "Suka traveling & kuliner 🌏",
-        },
-        "budi": {
-            "fullname": "Budi Santoso",
-            "username": "budi",
-            "email":    "budi@gmail.com",
-            "password": "budi1234",
-            "role":     "User",
-            "bio":      "Developer & coffee addict ☕",
-        },
-        "sari": {
-            "fullname": "Sari Dewi",
-            "username": "sari",
-            "email":    "sari@gmail.com",
-            "password": "sari1234",
-            "role":     "User",
-            "bio":      "Photography enthusiast 📸",
-        },
-        "dito": {
-            "fullname": "Dito Prasetyo",
-            "username": "dito",
-            "email":    "dito@gmail.com",
-            "password": "dito1234",
-            "role":     "User",
-            "bio":      "Gamer & tech reviewer 🎮",
-        },
-        "maya": {
-            "fullname": "Maya Anggraini",
-            "username": "maya",
-            "email":    "maya@gmail.com",
-            "password": "maya1234",
-            "role":     "User",
-            "bio":      "Penulis & book lover 📚",
-        },
-    }
-
     def _load_users(self):
         if os.path.exists(self.users_file):
             try:
@@ -113,6 +53,41 @@ class KizunaApp:
         if data is None:
             data = self.users
         with open(self.users_file, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
+    
+    def _save_data(self):
+        data = {
+            "banned_words": self.banned_words,
+            "posts": [
+                {
+                    "id":       p["id"],
+                    "username": p["username"],
+                    "text":     p["text"],
+                    "likes":    p["likes"],
+                    "comments": [
+                        {
+                            "id":       c["id"],
+                            "username": c["username"],
+                            "text":     c["text"],
+                        }
+                        for c in p.get("comments", [])
+                    ],
+                }
+                for p in self.posts
+            ],
+            "stories": [
+                {
+                    "id":       s["id"],
+                    "username": s["username"],
+                    "text":     s["text"],
+                }
+                for s in self.stories
+            ],
+            "follows": {
+                k: list(v) for k, v in self.follows.items()
+            },
+        }
+        with open(self.data_file, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=4)
 
     # ─── DUMMY DATA ─────────────────────────────────────────────────────────
@@ -235,7 +210,7 @@ class KizunaApp:
                 break
             except ValueError:
                 continue
-        return (likes * 3) + (comments * 5) + recency
+        return (likes * 2) + (comments * 3) + recency
 
     def extract_hashtags(self, text):
         import re
@@ -261,6 +236,7 @@ class KizunaApp:
             self.follows[follower].discard(target)
         else:
             self.follows[follower].add(target)
+        self._save_data()
 
     # ─── PLACEHOLDER HELPER ──────────────────────────────────────────────────
 
@@ -853,6 +829,7 @@ class KizunaApp:
                 if messagebox.askyesno("Hapus Post", "Hapus postingan ini?"):
                     self.unregister_hashtags_for_post(pid)
                     self.posts = [x for x in self.posts if x["id"] != pid]
+                    self._save_data()
                     refresh_fn()
             return do
 
@@ -1024,14 +1001,14 @@ class KizunaApp:
             ("🔥", "Avg Score",   f"{avg_score:.1f}", "#fff8e1", "#f57f17"),
         ]
         for icon, label, val, bg_col, fg_col in summary_items:
-            box = tk.Frame(cards_row, bg=bg_col, width=110, height=72,
+            box = tk.Frame(cards_row, bg=bg_col, width=130, height=100,
                            highlightthickness=1, highlightbackground="#ddd")
-            box.pack(side="left", padx=4)
+            box.pack(side="left", padx=3)
             box.pack_propagate(False)
-            tk.Label(box, text=icon, font=("Segoe UI", 14), bg=bg_col).pack(pady=(8, 0))
+            tk.Label(box, text=icon, font=("Segoe UI", 13), bg=bg_col).pack(pady=(10, 2))
             tk.Label(box, text=str(val), font=("Segoe UI", 13, "bold"),
                      bg=bg_col, fg=fg_col).pack()
-            tk.Label(box, text=label, font=("Segoe UI", 7), bg=bg_col, fg=GRAY).pack()
+            tk.Label(box, text=label, font=("Segoe UI", 8), bg=bg_col, fg=GRAY).pack(pady=(2, 10))
 
         tk.Frame(inner, bg="#eeeeee", height=1).pack(fill="x", padx=16, pady=8)
 
@@ -1041,7 +1018,7 @@ class KizunaApp:
         hdr2.pack(fill="x", pady=(0, 6))
         tk.Label(hdr2, text="🔥  Engagement Score per Post",
                  font=("Segoe UI", 11, "bold"), bg=LIGHT, fg=DGRAY).pack(side="left")
-        tk.Label(hdr2, text="(Skor = like×3 + komentar×5 + recency)",
+        tk.Label(hdr2, text="(Skor = like×2 + komentar×3 + recency)",
                  font=("Segoe UI", 8), bg=LIGHT, fg=GRAY).pack(side="left", padx=8)
 
         sorted_posts = sorted(self.posts, key=self.feed_score, reverse=True)
@@ -1343,6 +1320,7 @@ class KizunaApp:
                                 self.posts   = [x for x in self.posts   if x["id"] != iid]
                             else:
                                 self.stories = [x for x in self.stories if x["id"] != iid]
+                            self._save_data()
                             refresh()
                     return do
 
@@ -1680,6 +1658,7 @@ class KizunaApp:
                         if messagebox.askyesno("Hapus Post", "Hapus postingan ini?"):
                             self.unregister_hashtags_for_post(pid)
                             self.posts = [x for x in self.posts if x["id"] != pid]
+                            self._save_data()
                             refresh()
                     return do
 
@@ -1855,14 +1834,14 @@ class KizunaApp:
             ("🚨", "Pelanggaran", len(self.violation_log), "#ffebee", "#b71c1c"),
         ]
         for icon, label, val, bg_col, fg_col in summary_items:
-            box = tk.Frame(cards_row, bg=bg_col, width=110, height=72,
+            box = tk.Frame(cards_row, bg=bg_col, width=130, height=100,
                            highlightthickness=1, highlightbackground="#ddd")
-            box.pack(side="left", padx=4)
+            box.pack(side="left", padx=3)
             box.pack_propagate(False)
-            tk.Label(box, text=icon, font=("Segoe UI", 14), bg=bg_col).pack(pady=(8, 0))
+            tk.Label(box, text=icon, font=("Segoe UI", 13), bg=bg_col).pack(pady=(10, 2))
             tk.Label(box, text=str(val), font=("Segoe UI", 13, "bold"),
                      bg=bg_col, fg=fg_col).pack()
-            tk.Label(box, text=label, font=("Segoe UI", 7), bg=bg_col, fg=GRAY).pack()
+            tk.Label(box, text=label, font=("Segoe UI", 8), bg=bg_col, fg=GRAY).pack(pady=(2, 10))
 
         tk.Frame(inner, bg="#eeeeee", height=1).pack(fill="x", padx=16, pady=8)
 
@@ -2249,6 +2228,7 @@ class KizunaApp:
             })
             self.next_story_id += 1
             win.destroy()
+            self._save_data()
             refresh_fn()
 
         tk.Button(win, text="Posting Story", bg="#ffc0cb",
@@ -2277,6 +2257,7 @@ class KizunaApp:
         self.register_hashtags(new_post)
         self.next_post_id += 1
         self.post_entry.delete(0, tk.END)
+        self._save_data()
         refresh_fn()
         self.canvas_ref.update_idletasks()
         self.canvas_ref.yview_moveto(0.0)
@@ -2311,6 +2292,7 @@ class KizunaApp:
                                            "Apakah kamu yakin ingin menghapus postingan ini?"):
                         self.unregister_hashtags_for_post(pid)
                         self.posts = [p for p in self.posts if p["id"] != pid]
+                        self._save_data()
                         refresh_feed_fn()
                 return do
 
@@ -2860,6 +2842,7 @@ class KizunaApp:
                             if messagebox.askyesno("Hapus Post", "Hapus postingan ini?"):
                                 self.unregister_hashtags_for_post(pp["id"])
                                 self.posts = [x for x in self.posts if x["id"] != pp["id"]]
+                                self._save_data()
                                 if refresh_feed_fn:
                                     refresh_feed_fn()
                                 render_tab()
