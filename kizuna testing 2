@@ -9,7 +9,16 @@ import json
 
 
 class KizunaApp:
+    """
+    Aplikasi media sosial Kizuna berbasis Tkinter.
+
+    Mendukung tiga peran pengguna: Admin, Moderator, dan User.
+    Fitur meliputi posting, story, komentar, like, hashtag, chat,
+    follow/unfollow, moderasi konten, dan analitik platform.
+    """
+
     def __init__(self):
+        """Inisialisasi aplikasi, memuat data pengguna, data dummy, lalu menampilkan layar login."""
         self.root = tk.Tk()
         self.root.title("Kizuna")
         self.root.geometry("900x620")
@@ -39,7 +48,76 @@ class KizunaApp:
         self.root.mainloop()
 
     # ─── USER JSON ──────────────────────────────────────────────────────────
+
+    _DEFAULT_USERS = {
+        "admin": {
+            "fullname": "Administrator",
+            "username": "admin",
+            "email":    "admin@gmail.com",
+            "password": "admin123",
+            "role":     "Admin",
+            "bio":      "Pengelola platform Kizuna 🛡️",
+        },
+        "moderator": {
+            "fullname": "Moderator",
+            "username": "moderator",
+            "email":    "mod@gmail.com",
+            "password": "mod12345",
+            "role":     "Moderator",
+            "bio":      "Menjaga komunitas tetap aman 🔍",
+        },
+        "rina": {
+            "fullname": "Rina Kusuma",
+            "username": "rina",
+            "email":    "rina@gmail.com",
+            "password": "rina1234",
+            "role":     "User",
+            "bio":      "Suka traveling & kuliner 🌏",
+        },
+        "budi": {
+            "fullname": "Budi Santoso",
+            "username": "budi",
+            "email":    "budi@gmail.com",
+            "password": "budi1234",
+            "role":     "User",
+            "bio":      "Developer & coffee addict ☕",
+        },
+        "sari": {
+            "fullname": "Sari Dewi",
+            "username": "sari",
+            "email":    "sari@gmail.com",
+            "password": "sari1234",
+            "role":     "User",
+            "bio":      "Photography enthusiast 📸",
+        },
+        "dito": {
+            "fullname": "Dito Prasetyo",
+            "username": "dito",
+            "email":    "dito@gmail.com",
+            "password": "dito1234",
+            "role":     "User",
+            "bio":      "Gamer & tech reviewer 🎮",
+        },
+        "maya": {
+            "fullname": "Maya Anggraini",
+            "username": "maya",
+            "email":    "maya@gmail.com",
+            "password": "maya1234",
+            "role":     "User",
+            "bio":      "Penulis & book lover 📚",
+        },
+    }
+
     def _load_users(self):
+        """
+        Memuat data pengguna dari file JSON.
+
+        Jika file tidak ditemukan atau rusak, data default akan digunakan
+        dan disimpan ke file baru.
+
+        Returns:
+            dict: Kamus pengguna dengan username sebagai kunci.
+        """
         if os.path.exists(self.users_file):
             try:
                 with open(self.users_file, "r", encoding="utf-8") as f:
@@ -50,12 +128,28 @@ class KizunaApp:
         return dict(self._DEFAULT_USERS)
 
     def _save_users(self, data=None):
+        """
+        Menyimpan data pengguna ke file JSON.
+
+        Args:
+            data (dict, optional): Data pengguna yang akan disimpan.
+                Jika None, menggunakan self.users.
+        """
         if data is None:
             data = self.users
         with open(self.users_file, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=4)
-    
+
     def _save_data(self):
+        """
+        Menyimpan data aplikasi (banned words, posts, stories, follows) ke file JSON.
+
+        Data yang disimpan meliputi:
+        - banned_words: daftar kata terlarang
+        - posts: semua postingan beserta komentar
+        - stories: semua story
+        - follows: relasi follow antar pengguna
+        """
         data = {
             "banned_words": self.banned_words,
             "posts": [
@@ -93,6 +187,13 @@ class KizunaApp:
     # ─── DUMMY DATA ─────────────────────────────────────────────────────────
 
     def _seed_dummy_data(self):
+        """
+        Memuat dan menginisialisasi data awal dari file data.json.
+
+        Memproses posts, stories, dan relasi follow dari file JSON.
+        Setiap konten dilewatkan melalui content_filter untuk mendeteksi
+        kata terlarang. Jika file tidak ditemukan, method ini tidak melakukan apa-apa.
+        """
         self.data_file = "data.json"
         if not os.path.exists(self.data_file):
             return
@@ -157,18 +258,46 @@ class KizunaApp:
     # ─── UTILS ───────────────────────────────────────────────────────────────
 
     def clear_window(self):
+        """Menghapus semua widget dari jendela utama."""
         for w in self.root.winfo_children():
             w.destroy()
 
     def create_card(self, width=380, height=420):
+        """
+        Membuat frame kartu yang dipusatkan di jendela utama.
+
+        Args:
+            width (int): Lebar kartu dalam piksel. Default 380.
+            height (int): Tinggi kartu dalam piksel. Default 420.
+
+        Returns:
+            tk.Frame: Frame kartu yang sudah ditempatkan di tengah layar.
+        """
         card = tk.Frame(self.root, bg="white", bd=1, relief="solid")
         card.place(relx=0.5, rely=0.5, anchor="center", width=width, height=height)
         return card
 
     def now_str(self):
+        """
+        Mengembalikan timestamp saat ini dalam format string.
+
+        Returns:
+            str: Waktu sekarang dalam format "DD Mon YYYY HH:MM".
+        """
         return datetime.now().strftime("%d %b %Y %H:%M")
 
     def content_filter(self, text):
+        """
+        Menyaring teks dari kata-kata terlarang dan menggantinya dengan "***".
+
+        Args:
+            text (str): Teks yang akan disaring.
+
+        Returns:
+            tuple: (teks_hasil (str), daftar_kata_ditemukan (list))
+                - teks_hasil: teks dengan kata terlarang diganti "***"
+                - daftar_kata_ditemukan: list kata terlarang yang ditemukan
+        """
         result = text
         found  = []
         for kata in self.banned_words:
@@ -188,6 +317,14 @@ class KizunaApp:
         return result, found
 
     def log_violation(self, username, words, tipe):
+        """
+        Mencatat pelanggaran konten ke dalam violation_log.
+
+        Args:
+            username (str): Username pengguna yang melakukan pelanggaran.
+            words (list): Daftar kata terlarang yang ditemukan.
+            tipe (str): Jenis konten yang melanggar (misal: "Post", "Komentar", "Story").
+        """
         for w in words:
             self.violation_log.append({
                 "username": username,
@@ -197,6 +334,19 @@ class KizunaApp:
             })
 
     def feed_score(self, post):
+        """
+        Menghitung skor engagement sebuah postingan untuk pengurutan feed.
+
+        Rumus: (jumlah_like × 2) + (jumlah_komentar × 3) + skor_recency
+        Skor recency dihitung dari 10 / log(usia_jam + e) sehingga
+        postingan baru mendapat nilai lebih tinggi.
+
+        Args:
+            post (dict): Data postingan yang berisi 'likes', 'comments', dan 'ts'/'raw_ts'.
+
+        Returns:
+            float: Skor engagement postingan. Mengembalikan 0 jika timestamp tidak valid.
+        """
         likes    = len(post.get("likes", []))
         comments = len(post.get("comments", []))
         raw_ts = post.get("raw_ts") or post.get("ts", "")
@@ -213,24 +363,67 @@ class KizunaApp:
         return (likes * 2) + (comments * 3) + recency
 
     def extract_hashtags(self, text):
+        """
+        Mengekstrak semua hashtag dari sebuah teks.
+
+        Args:
+            text (str): Teks yang akan diekstrak hashtag-nya.
+
+        Returns:
+            list: Daftar hashtag (huruf kecil, tanpa simbol #).
+        """
         import re
         return [tag.lower() for tag in re.findall(r"#(\w+)", text)]
 
     def register_hashtags(self, post):
+        """
+        Mendaftarkan hashtag dari sebuah postingan ke dalam kamus communities.
+
+        Args:
+            post (dict): Data postingan yang berisi 'text' dan 'id'.
+        """
         for tag in self.extract_hashtags(post["text"]):
             self.communities.setdefault(tag, [])
             if post["id"] not in self.communities[tag]:
                 self.communities[tag].append(post["id"])
 
     def unregister_hashtags_for_post(self, post_id):
+        """
+        Menghapus ID postingan dari semua entri hashtag di communities.
+
+        Dipanggil sebelum postingan dihapus agar data hashtag tetap konsisten.
+
+        Args:
+            post_id (int): ID postingan yang akan dihapus dari indeks hashtag.
+        """
         for tag in list(self.communities.keys()):
             if post_id in self.communities[tag]:
                 self.communities[tag].remove(post_id)
 
     def is_following(self, follower, target):
+        """
+        Memeriksa apakah seorang pengguna mengikuti pengguna lain.
+
+        Args:
+            follower (str): Username pengguna yang melakukan follow.
+            target (str): Username pengguna yang diikuti.
+
+        Returns:
+            bool: True jika follower mengikuti target, False jika tidak.
+        """
         return target in self.follows.get(follower, set())
 
     def toggle_follow(self, follower, target):
+        """
+        Mengubah status follow antara dua pengguna (follow/unfollow).
+
+        Jika follower sudah mengikuti target, maka akan unfollow.
+        Jika belum, maka akan follow. Perubahan disimpan ke file.
+
+        Args:
+            follower (str): Username pengguna yang melakukan aksi follow/unfollow.
+            target (str): Username pengguna yang dituju.
+        """
         self.follows.setdefault(follower, set())
         if target in self.follows[follower]:
             self.follows[follower].discard(target)
@@ -241,6 +434,19 @@ class KizunaApp:
     # ─── PLACEHOLDER HELPER ──────────────────────────────────────────────────
 
     def add_placeholder(self, entry, placeholder, is_password=False):
+        """
+        Menambahkan teks placeholder ke widget Entry dengan perilaku focus.
+
+        Teks placeholder ditampilkan saat entry kosong dan tidak difokus.
+        Placeholder akan hilang saat entry difokus, dan muncul kembali
+        saat entry kehilangan fokus dalam keadaan kosong.
+
+        Args:
+            entry (tk.Entry): Widget Entry yang akan diberi placeholder.
+            placeholder (str): Teks placeholder yang ditampilkan.
+            is_password (bool): Jika True, karakter akan disembunyikan (show="*")
+                saat placeholder tidak aktif.
+        """
         entry.placeholder            = placeholder
         entry.is_password            = is_password
         entry.is_showing_placeholder = True
@@ -267,6 +473,16 @@ class KizunaApp:
         entry.bind("<FocusOut>", on_focus_out)
 
     def get_entry_value(self, entry):
+        """
+        Mengambil nilai dari widget Entry, mengabaikan teks placeholder.
+
+        Args:
+            entry (tk.Entry): Widget Entry yang nilainya ingin diambil.
+
+        Returns:
+            str: Nilai yang diinput pengguna, atau string kosong jika
+                entry masih menampilkan placeholder.
+        """
         if entry.is_showing_placeholder:
             return ""
         return entry.get()
@@ -274,6 +490,21 @@ class KizunaApp:
     # ─── SCROLLABLE FRAME HELPER ─────────────────────────────────────────────
 
     def make_scrollable(self, parent, bg="#f9f9f9"):
+        """
+        Membuat frame yang dapat di-scroll secara vertikal.
+
+        Membuat Canvas dengan Scrollbar vertikal di dalam parent,
+        lalu menempatkan frame inner di dalam Canvas tersebut.
+
+        Args:
+            parent (tk.Widget): Widget induk tempat frame scrollable ditempatkan.
+            bg (str): Warna latar belakang Canvas dan frame inner. Default "#f9f9f9".
+
+        Returns:
+            tuple: (canvas (tk.Canvas), inner (tk.Frame))
+                - canvas: widget Canvas yang digunakan untuk scrolling
+                - inner: frame tempat widget konten ditempatkan
+        """
         canvas = tk.Canvas(parent, bg=bg, bd=0, highlightthickness=0)
         sb     = tk.Scrollbar(parent, orient="vertical", command=canvas.yview)
         inner  = tk.Frame(canvas, bg=bg)
@@ -289,6 +520,20 @@ class KizunaApp:
     # ─── EDIT DIALOG HELPER ──────────────────────────────────────────────────
 
     def open_edit_dialog(self, title, current_text, on_save_fn, parent_win=None):
+        """
+        Membuka dialog popup untuk mengedit sebuah teks.
+
+        Menampilkan jendela Toplevel berisi widget Text yang sudah terisi
+        dengan teks saat ini. Tombol "Simpan" akan memanggil on_save_fn
+        dengan teks baru sebagai argumen.
+
+        Args:
+            title (str): Judul dialog dan label yang ditampilkan.
+            current_text (str): Teks awal yang akan ditampilkan di editor.
+            on_save_fn (callable): Fungsi yang dipanggil dengan teks baru saat disimpan.
+            parent_win (tk.Toplevel, optional): Jendela induk untuk dialog.
+                Jika None, menggunakan self.root.
+        """
         parent = parent_win or self.root
         win = tk.Toplevel(parent)
         win.title(title)
@@ -320,6 +565,7 @@ class KizunaApp:
     # ─── LOGIN ───────────────────────────────────────────────────────────────
 
     def show_login(self):
+        """Menampilkan layar login dengan field username/email dan password."""
         self.clear_window()
         card = self.create_card()
         tk.Label(card, text="Kizuna", font=("Segoe UI", 24, "bold"), bg="white").pack(pady=30)
@@ -348,6 +594,7 @@ class KizunaApp:
     # ─── REGISTER ────────────────────────────────────────────────────────────
 
     def show_register(self):
+        """Menampilkan layar registrasi akun baru dengan field nama, username, email, dan password."""
         self.clear_window()
         card = self.create_card(420, 500)
         tk.Button(card, text="← Back", bd=0, bg="white",
@@ -380,6 +627,13 @@ class KizunaApp:
                   fg="blue", command=self.show_login).pack()
 
     def register(self):
+        """
+        Memproses registrasi pengguna baru.
+
+        Memvalidasi semua input (kelengkapan field, keunikan username dan email,
+        panjang dan format password). Jika valid, menyimpan pengguna baru
+        ke users.json dan mengarahkan ke layar login.
+        """
         fullname = self.get_entry_value(self.reg_fullname)
         username = self.get_entry_value(self.reg_username)
         email    = self.get_entry_value(self.reg_email)
@@ -417,6 +671,14 @@ class KizunaApp:
     # ─── LOGIN LOGIC ─────────────────────────────────────────────────────────
 
     def login(self):
+        """
+        Memproses percobaan login pengguna.
+
+        Mencocokkan identifier (username atau email) dan password dengan data pengguna.
+        Jika cocok, mengarahkan ke dashboard sesuai role (Admin, Moderator, atau User).
+        Jika gagal, mengurangi sisa percobaan. Setelah 3 kali gagal,
+        akun dikunci sementara dan percobaan direset.
+        """
         identifier = self.get_entry_value(self.login_user)
         password   = self.get_entry_value(self.login_pass)
 
@@ -444,6 +706,15 @@ class KizunaApp:
     # ─── SIDEBAR HELPER ──────────────────────────────────────────────────────
 
     def create_sidebar(self, title):
+        """
+        Membuat sidebar navigasi di sisi kiri jendela utama.
+
+        Args:
+            title (str): Judul yang ditampilkan di bagian atas sidebar.
+
+        Returns:
+            tk.Frame: Frame sidebar yang sudah dipasang di sisi kiri.
+        """
         sidebar = tk.Frame(self.root, bg="#ffc0cb", width=255)
         sidebar.pack(side="left", fill="y")
         sidebar.pack_propagate(False)
@@ -452,6 +723,16 @@ class KizunaApp:
         return sidebar
 
     def add_sidebar_btn(self, sidebar, label, cmd):
+        """
+        Menambahkan tombol navigasi ke dalam sidebar.
+
+        Tombol dilengkapi dengan garis pemisah di atas dan bawahnya.
+
+        Args:
+            sidebar (tk.Frame): Frame sidebar tempat tombol ditambahkan.
+            label (str): Teks label yang ditampilkan pada tombol.
+            cmd (callable): Fungsi yang dipanggil saat tombol diklik.
+        """
         tk.Frame(sidebar, bg="#e8a0b0", height=1).pack(fill="x")
         btn = tk.Button(
             sidebar, text=label, width=22, anchor="w", padx=16,
@@ -465,6 +746,15 @@ class KizunaApp:
     # ─── ADMIN DASHBOARD ─────────────────────────────────────────────────────
 
     def show_admin_dashboard(self, user):
+        """
+        Menampilkan dashboard Admin dengan sidebar dan beberapa halaman.
+
+        Halaman yang tersedia: Beranda, Analitik, Kelola User, Moderasi Post,
+        Moderasi Story, Kelola Hashtag, dan Log Pelanggaran.
+
+        Args:
+            user (dict): Data pengguna Admin yang sedang login.
+        """
         self.clear_window()
         sidebar = self.create_sidebar("Admin")
         content = tk.Frame(self.root, bg="white")
@@ -501,6 +791,20 @@ class KizunaApp:
     # ─── ADMIN HOME PAGE (ENHANCED) ──────────────────────────────────────────
 
     def _admin_page_home(self, parent, user):
+        """
+        Membangun halaman beranda Admin.
+
+        Menampilkan stat cards ringkasan platform, feed semua postingan
+        dengan filter dan mode pengurutan, daftar user aktif,
+        trending hashtag, dan pelanggaran terbaru.
+
+        Args:
+            parent (tk.Frame): Frame induk tempat halaman dibangun.
+            user (dict): Data pengguna Admin yang sedang login.
+
+        Returns:
+            tk.Frame: Frame halaman beranda Admin.
+        """
         PINK  = "#ffc0cb"
         DPINK = "#e57a8a"
         WHITE = "#ffffff"
@@ -726,6 +1030,22 @@ class KizunaApp:
     # ─── ADMIN POST CARD (for home feed) ─────────────────────────────────────
 
     def _admin_post_card(self, post, feed_inner, WHITE, LIGHT, GRAY, DGRAY, PINK, refresh_fn):
+        """
+        Membuat kartu postingan untuk feed Admin di halaman beranda.
+
+        Menampilkan informasi postingan lengkap beserta tombol aksi Admin
+        (lihat komentar, peringatkan pengguna, dan hapus postingan).
+
+        Args:
+            post (dict): Data postingan yang akan ditampilkan.
+            feed_inner (tk.Frame): Frame scrollable tempat kartu ditempatkan.
+            WHITE (str): Kode warna putih.
+            LIGHT (str): Kode warna latar belakang terang.
+            GRAY (str): Kode warna abu-abu.
+            DGRAY (str): Kode warna abu-abu gelap.
+            PINK (str): Kode warna pink.
+            refresh_fn (callable): Fungsi untuk me-refresh feed setelah aksi.
+        """
         card = tk.Frame(feed_inner, bg=WHITE, pady=10, padx=12,
                         highlightthickness=1, highlightbackground="#eeeeee")
         card.pack(fill="x", pady=(0, 6))
@@ -846,6 +1166,19 @@ class KizunaApp:
     # ─── ANALYTICS DASHBOARD ─────────────────────────────────────────────────
 
     def _admin_page_analytics(self, parent):
+        """
+        Membangun halaman Analitik Admin.
+
+        Menampilkan ringkasan platform, daftar engagement score per post
+        dengan progress bar, dan trending hashtag. Dilengkapi tombol
+        Export CSV dan Print Preview laporan.
+
+        Args:
+            parent (tk.Frame): Frame induk tempat halaman dibangun.
+
+        Returns:
+            tk.Frame: Frame halaman analitik Admin.
+        """
         PINK  = "#ffc0cb"
         DPINK = "#e57a8a"
         WHITE = "#ffffff"
@@ -1018,7 +1351,7 @@ class KizunaApp:
         hdr2.pack(fill="x", pady=(0, 6))
         tk.Label(hdr2, text="🔥  Engagement Score per Post",
                  font=("Segoe UI", 11, "bold"), bg=LIGHT, fg=DGRAY).pack(side="left")
-        tk.Label(hdr2, text="(Skor = like×2 + komentar×3 + recency)",
+        tk.Label(hdr2, text="(Skor = like×3 + komentar×5 + recency)",
                  font=("Segoe UI", 8), bg=LIGHT, fg=GRAY).pack(side="left", padx=8)
 
         sorted_posts = sorted(self.posts, key=self.feed_score, reverse=True)
@@ -1090,6 +1423,18 @@ class KizunaApp:
         return page
 
     def _admin_page_users(self, parent):
+        """
+        Membangun halaman Kelola User untuk Admin.
+
+        Menampilkan tabel semua pengguna dengan tombol Edit dan Hapus
+        di setiap baris, serta tombol untuk membuat akun baru.
+
+        Args:
+            parent (tk.Frame): Frame induk tempat halaman dibangun.
+
+        Returns:
+            tk.Frame: Frame halaman kelola user.
+        """
         page = tk.Frame(parent, bg="#f9f9f9")
         tk.Label(page, text="Kelola User", font=("Segoe UI", 14, "bold"),
                  bg="#f9f9f9").pack(pady=10)
@@ -1153,6 +1498,17 @@ class KizunaApp:
     # ─── EDIT USER (termasuk ganti role) ─────────────────────────────────────
 
     def _open_edit_user_dialog(self, uname, role_options, refresh_fn):
+        """
+        Membuka dialog untuk mengedit data pengguna yang ada.
+
+        Memungkinkan Admin mengubah nama lengkap, email, role, dan password.
+        Akun default (admin/moderator) memerlukan konfirmasi sebelum role diubah.
+
+        Args:
+            uname (str): Username pengguna yang akan diedit.
+            role_options (list): Daftar role yang tersedia ["User", "Moderator", "Admin"].
+            refresh_fn (callable): Fungsi untuk me-refresh tampilan tabel setelah disimpan.
+        """
         u = self.users[uname]
         win = tk.Toplevel(self.root)
         win.title(f"Edit User — @{uname}")
@@ -1220,6 +1576,16 @@ class KizunaApp:
     # ─── CREATE USER (admin bisa langsung set role) ──────────────────────────
 
     def _open_create_user_dialog(self, role_options, refresh_fn):
+        """
+        Membuka dialog untuk membuat akun pengguna baru oleh Admin.
+
+        Admin dapat mengisi nama lengkap, username, email, password,
+        dan memilih role langsung (User, Moderator, atau Admin).
+
+        Args:
+            role_options (list): Daftar role yang tersedia ["User", "Moderator", "Admin"].
+            refresh_fn (callable): Fungsi untuk me-refresh tampilan tabel setelah akun dibuat.
+        """
         win = tk.Toplevel(self.root)
         win.title("Buat Akun Baru")
         win.geometry("360x460")
@@ -1286,6 +1652,18 @@ class KizunaApp:
                   bd=0, padx=14, pady=6, command=save).pack(pady=4)
 
     def _admin_page_mod_list(self, parent, kind):
+        """
+        Membangun halaman moderasi daftar postingan atau story untuk Admin.
+
+        Menampilkan semua item dengan tombol Hapus di setiap item.
+
+        Args:
+            parent (tk.Frame): Frame induk tempat halaman dibangun.
+            kind (str): Jenis konten yang dimoderasi, "post" atau "story".
+
+        Returns:
+            tk.Frame: Frame halaman moderasi konten.
+        """
         title = "Moderasi Postingan" if kind == "post" else "Moderasi Stories"
         page  = tk.Frame(parent, bg="#f9f9f9")
         tk.Label(page, text=title, font=("Segoe UI", 14, "bold"),
@@ -1334,6 +1712,19 @@ class KizunaApp:
     # ─── HASHTAG MANAGEMENT ──────────────────────────────────────────────────
 
     def _admin_page_hashtags(self, parent):
+        """
+        Membangun halaman Kelola Hashtag untuk Admin.
+
+        Menampilkan tabel semua hashtag beserta jumlah postingan,
+        dengan tombol Edit dan Hapus. Admin juga dapat membuat hashtag baru.
+        Menghapus hashtag akan menghapus tag tersebut dari semua postingan terkait.
+
+        Args:
+            parent (tk.Frame): Frame induk tempat halaman dibangun.
+
+        Returns:
+            tk.Frame: Frame halaman kelola hashtag.
+        """
         page = tk.Frame(parent, bg="#f9f9f9")
         tk.Label(page, text="Kelola Hashtag", font=("Segoe UI", 14, "bold"),
                  bg="#f9f9f9").pack(pady=10)
@@ -1441,6 +1832,18 @@ class KizunaApp:
     # ─── VIOLATION LOG ───────────────────────────────────────────────────────
 
     def _admin_page_violation_log(self, parent):
+        """
+        Membangun halaman Log Pelanggaran untuk Admin.
+
+        Menampilkan tabel semua pelanggaran filter konten dalam urutan
+        terbaru. Dilengkapi tombol Refresh dan Hapus Semua Log.
+
+        Args:
+            parent (tk.Frame): Frame induk tempat halaman dibangun.
+
+        Returns:
+            tk.Frame: Frame halaman log pelanggaran.
+        """
         page = tk.Frame(parent, bg="#f9f9f9")
         tk.Label(page, text="Log Pelanggaran Filter", font=("Segoe UI", 14, "bold"),
                  bg="#f9f9f9").pack(pady=10)
@@ -1492,6 +1895,15 @@ class KizunaApp:
     # ─── MODERATOR DASHBOARD ─────────────────────────────────────────────────
 
     def show_moderator_dashboard(self, user):
+        """
+        Menampilkan dashboard Moderator dengan navbar bawah dan beberapa halaman.
+
+        Halaman yang tersedia: Review Post, Review Story, Hashtag,
+        Log Pelanggaran, dan Analitik.
+
+        Args:
+            user (dict): Data pengguna Moderator yang sedang login.
+        """
         self.clear_window()
         self.current_user = user
 
@@ -1581,6 +1993,21 @@ class KizunaApp:
     # ─── MOD: REVIEW POST PAGE ────────────────────────────────────────────────
 
     def _build_mod_post_page(self, parent, user, LIGHT, DGRAY, GRAY, PINK, WHITE):
+        """
+        Membangun halaman Review Postingan untuk Moderator.
+
+        Menampilkan semua postingan dengan statistik (like, komentar, skor)
+        dan tombol aksi: Peringatkan pengguna atau Hapus postingan.
+
+        Args:
+            parent (tk.Frame): Frame induk tempat halaman dibangun.
+            user (dict): Data pengguna Moderator yang sedang login.
+            LIGHT (str): Kode warna latar belakang terang.
+            DGRAY (str): Kode warna abu-abu gelap.
+            GRAY (str): Kode warna abu-abu.
+            PINK (str): Kode warna pink.
+            WHITE (str): Kode warna putih.
+        """
         hdr = tk.Frame(parent, bg=WHITE, pady=10)
         hdr.pack(fill="x")
         tk.Label(hdr, text="📝  Review Postingan",
@@ -1674,6 +2101,21 @@ class KizunaApp:
     # ─── MOD: REVIEW STORY PAGE ───────────────────────────────────────────────
 
     def _build_mod_story_page(self, parent, user, LIGHT, DGRAY, GRAY, PINK, WHITE):
+        """
+        Membangun halaman Review Story untuk Moderator.
+
+        Menampilkan semua story dengan tombol aksi:
+        Peringatkan pengguna atau Hapus story.
+
+        Args:
+            parent (tk.Frame): Frame induk tempat halaman dibangun.
+            user (dict): Data pengguna Moderator yang sedang login.
+            LIGHT (str): Kode warna latar belakang terang.
+            DGRAY (str): Kode warna abu-abu gelap.
+            GRAY (str): Kode warna abu-abu.
+            PINK (str): Kode warna pink.
+            WHITE (str): Kode warna putih.
+        """
         hdr = tk.Frame(parent, bg=WHITE, pady=10)
         hdr.pack(fill="x")
         tk.Label(hdr, text="📖  Review Story",
@@ -1745,6 +2187,21 @@ class KizunaApp:
     # ─── MOD: VIOLATION LOG PAGE ──────────────────────────────────────────────
 
     def _build_mod_violation_page(self, parent, LIGHT, DGRAY, GRAY, PINK, WHITE):
+        """
+        Membangun halaman Log Pelanggaran untuk Moderator.
+
+        Menampilkan semua pelanggaran konten dalam format kartu
+        dengan detail username, kata terlarang, tipe konten, dan waktu.
+        Dilengkapi tombol Refresh dan Hapus Semua Log.
+
+        Args:
+            parent (tk.Frame): Frame induk tempat halaman dibangun.
+            LIGHT (str): Kode warna latar belakang terang.
+            DGRAY (str): Kode warna abu-abu gelap.
+            GRAY (str): Kode warna abu-abu.
+            PINK (str): Kode warna pink.
+            WHITE (str): Kode warna putih.
+        """
         hdr = tk.Frame(parent, bg=WHITE, pady=10)
         hdr.pack(fill="x")
         tk.Label(hdr, text="🚨  Log Pelanggaran",
@@ -1806,6 +2263,20 @@ class KizunaApp:
     # ─── MOD: ANALYTICS PAGE ─────────────────────────────────────────────────
 
     def _build_mod_analytics_page(self, parent, LIGHT, DGRAY, GRAY, PINK, WHITE):
+        """
+        Membangun halaman Analitik untuk Moderator.
+
+        Menampilkan ringkasan platform (stat cards), top post berdasarkan
+        engagement score dengan progress bar, dan trending hashtag.
+
+        Args:
+            parent (tk.Frame): Frame induk tempat halaman dibangun.
+            LIGHT (str): Kode warna latar belakang terang.
+            DGRAY (str): Kode warna abu-abu gelap.
+            GRAY (str): Kode warna abu-abu.
+            PINK (str): Kode warna pink.
+            WHITE (str): Kode warna putih.
+        """
         hdr = tk.Frame(parent, bg=WHITE, pady=10)
         hdr.pack(fill="x")
         tk.Label(hdr, text="📊  Analitik Platform",
@@ -1915,6 +2386,15 @@ class KizunaApp:
     # ─── USER DASHBOARD ──────────────────────────────────────────────────────
 
     def show_user_dashboard(self, user):
+        """
+        Menampilkan dashboard pengguna biasa (User) dengan navbar bawah.
+
+        Halaman yang tersedia: Beranda (feed + stories), Tagar (hashtag komunitas),
+        Chat (pesan langsung), Aktivitas (notifikasi like & komentar), dan Profil.
+
+        Args:
+            user (dict): Data pengguna yang sedang login.
+        """
         self.clear_window()
         self.current_user = user
 
@@ -2176,6 +2656,22 @@ class KizunaApp:
 
     def nav_switch(self, pages, index, nav_btns, PINK, DPINK,
                    refresh_activity_fn=None, **kwargs):
+        """
+        Beralih antar halaman pada navbar User dashboard.
+
+        Menyembunyikan semua halaman lain dan menampilkan halaman yang dipilih.
+        Jika berpindah ke halaman Aktivitas (index 3), refresh aktivitas dipanggil.
+        Jika berpindah ke halaman Profil (index 4), profil di-render ulang.
+
+        Args:
+            pages (list): Daftar frame halaman yang tersedia.
+            index (int): Indeks halaman yang akan ditampilkan.
+            nav_btns (list): Daftar tuple (frame, icon_label, text_label) untuk navbar.
+            PINK (str): Kode warna pink untuk tombol aktif.
+            DPINK (str): Kode warna pink gelap (tidak digunakan langsung).
+            refresh_activity_fn (callable, optional): Fungsi refresh halaman Aktivitas.
+            **kwargs: Argumen tambahan untuk merender profil (page4, user, warna, rf).
+        """
         for page in pages:
             page.pack_forget()
         pages[index].pack(fill="both", expand=True)
@@ -2204,6 +2700,15 @@ class KizunaApp:
     # ─── STORY ───────────────────────────────────────────────────────────────
 
     def open_add_story(self, refresh_fn):
+        """
+        Membuka dialog untuk menambah story baru.
+
+        Konten story dilewatkan melalui content_filter sebelum disimpan.
+        Jika terdapat kata terlarang, pelanggaran dicatat ke violation_log.
+
+        Args:
+            refresh_fn (callable): Fungsi untuk me-refresh tampilan story bar setelah posting.
+        """
         win = tk.Toplevel(self.root)
         win.title("Tambah Story")
         win.geometry("360x200")
@@ -2237,6 +2742,17 @@ class KizunaApp:
     # ─── POST ─────────────────────────────────────────────────────────────────
 
     def create_post(self, user, refresh_fn):
+        """
+        Membuat postingan baru dari input field di halaman beranda User.
+
+        Mengambil teks dari self.post_entry, menerapkan content_filter,
+        menyimpan postingan baru, mendaftarkan hashtag, lalu me-refresh feed.
+        Tidak melakukan apa-apa jika input kosong.
+
+        Args:
+            user (dict): Data pengguna yang membuat postingan.
+            refresh_fn (callable): Fungsi untuk me-refresh tampilan feed setelah posting.
+        """
         text = self.post_entry.get().strip()
         if not text:
             return
@@ -2266,6 +2782,23 @@ class KizunaApp:
 
     def _add_post_card(self, post, viewer, WHITE, LIGHT, GRAY, DGRAY, PINK,
                        refresh_feed_fn, refresh_activity_fn):
+        """
+        Membuat kartu postingan interaktif pada feed User.
+
+        Menampilkan informasi postingan beserta tombol like, komentar,
+        serta tombol edit dan hapus jika postingan milik pengguna yang sedang login.
+
+        Args:
+            post (dict): Data postingan yang akan ditampilkan.
+            viewer (dict): Data pengguna yang sedang melihat feed.
+            WHITE (str): Kode warna putih.
+            LIGHT (str): Kode warna latar belakang terang.
+            GRAY (str): Kode warna abu-abu.
+            DGRAY (str): Kode warna abu-abu gelap.
+            PINK (str): Kode warna pink.
+            refresh_feed_fn (callable): Fungsi untuk me-refresh feed.
+            refresh_activity_fn (callable): Fungsi untuk me-refresh halaman Aktivitas.
+        """
         card = tk.Frame(self.feed_inner, bg=WHITE, pady=10, padx=12,
                         highlightthickness=1, highlightbackground="#eeeeee")
         card.pack(fill="x", pady=(0, 8))
@@ -2359,6 +2892,23 @@ class KizunaApp:
 
     def open_comments(self, post, cmt_btn, viewer, WHITE, LIGHT, GRAY, DGRAY, PINK,
                       refresh_activity_fn):
+        """
+        Membuka jendela popup komentar untuk sebuah postingan.
+
+        Menampilkan semua komentar yang ada dan form untuk menambah komentar baru.
+        Pemilik komentar dapat mengedit atau menghapus komentar mereka sendiri.
+
+        Args:
+            post (dict): Data postingan yang komentarnya akan ditampilkan.
+            cmt_btn (tk.Button): Tombol komentar pada kartu post, diperbarui jumlahnya.
+            viewer (dict): Data pengguna yang sedang melihat komentar.
+            WHITE (str): Kode warna putih.
+            LIGHT (str): Kode warna latar belakang terang.
+            GRAY (str): Kode warna abu-abu.
+            DGRAY (str): Kode warna abu-abu gelap.
+            PINK (str): Kode warna pink.
+            refresh_activity_fn (callable): Fungsi untuk me-refresh halaman Aktivitas.
+        """
         win = tk.Toplevel(self.root)
         win.title("Komentar")
         win.geometry("420x480")
@@ -2457,6 +3007,21 @@ class KizunaApp:
     # ─── CHAT ────────────────────────────────────────────────────────────────
 
     def _build_chat_page(self, parent, user, LIGHT, DGRAY, GRAY, PINK, WHITE):
+        """
+        Membangun halaman Chat untuk User.
+
+        Menampilkan daftar pengguna lain di panel kiri dan area percakapan
+        di panel kanan. Pesan disimpan dalam memori sesi (tidak persisten).
+
+        Args:
+            parent (tk.Frame): Frame induk tempat halaman dibangun.
+            user (dict): Data pengguna yang sedang login.
+            LIGHT (str): Kode warna latar belakang terang.
+            DGRAY (str): Kode warna abu-abu gelap.
+            GRAY (str): Kode warna abu-abu.
+            PINK (str): Kode warna pink.
+            WHITE (str): Kode warna putih.
+        """
         self._chat_store  = {}
         self._chat_target = [None]
 
@@ -2524,6 +3089,21 @@ class KizunaApp:
     # ─── COMMUNITY / HASHTAG PAGE ────────────────────────────────────────────
 
     def _build_community_page(self, parent, user, LIGHT, DGRAY, GRAY, PINK, WHITE):
+        """
+        Membangun halaman Hashtag/Komunitas untuk User dan Moderator.
+
+        Menampilkan daftar trending hashtag di panel kiri dan postingan
+        terkait hashtag di panel kanan. Dilengkapi fitur pencarian hashtag.
+
+        Args:
+            parent (tk.Frame): Frame induk tempat halaman dibangun.
+            user (dict): Data pengguna yang sedang login.
+            LIGHT (str): Kode warna latar belakang terang.
+            DGRAY (str): Kode warna abu-abu gelap.
+            GRAY (str): Kode warna abu-abu.
+            PINK (str): Kode warna pink.
+            WHITE (str): Kode warna putih.
+        """
         tk.Label(parent, text="Hashtag", font=("Segoe UI", 14, "bold"),
                  bg=LIGHT, fg=DGRAY).pack(pady=14)
 
@@ -2647,6 +3227,25 @@ class KizunaApp:
     # ─── SOCIAL CONNECT ──────────────────────────────────────────────────────
 
     def _build_social_connect_page(self, parent, viewer, LIGHT, DGRAY, GRAY, PINK, WHITE):
+        """
+        Membangun halaman Social Connect (daftar pengguna lain untuk di-follow).
+
+        Menampilkan semua pengguna selain pengguna yang sedang login,
+        beserta jumlah post dan follower masing-masing. Tombol follow/unfollow
+        dapat diklik untuk mengubah status koneksi.
+
+        Args:
+            parent (tk.Widget): Widget induk tempat halaman dibangun (bisa Toplevel atau Frame).
+            viewer (dict): Data pengguna yang sedang login.
+            LIGHT (str): Kode warna latar belakang terang.
+            DGRAY (str): Kode warna abu-abu gelap.
+            GRAY (str): Kode warna abu-abu.
+            PINK (str): Kode warna pink.
+            WHITE (str): Kode warna putih.
+
+        Returns:
+            tk.Frame: Frame inner scrollable yang berisi daftar pengguna.
+        """
         for w in parent.winfo_children():
             w.destroy()
         tk.Label(parent, text="Social Connect", font=("Segoe UI", 13, "bold"),
@@ -2704,6 +3303,26 @@ class KizunaApp:
 
     def _render_profile(self, parent, user, LIGHT, DGRAY, GRAY, PINK, WHITE,
                         refresh_feed_fn=None):
+        """
+        Me-render halaman Profil pengguna.
+
+        Menampilkan avatar (inisial nama), informasi akun, statistik (post, story,
+        following, followers, total like, engagement score), dan tab untuk melihat
+        postingan atau story milik pengguna. Dilengkapi tombol Edit Profil
+        dan Social Connect.
+
+        Args:
+            parent (tk.Frame): Frame induk tempat profil dirender. Semua widget
+                di dalamnya akan dihapus terlebih dahulu sebelum dirender ulang.
+            user (dict): Data pengguna yang profilnya ditampilkan.
+            LIGHT (str): Kode warna latar belakang terang.
+            DGRAY (str): Kode warna abu-abu gelap.
+            GRAY (str): Kode warna abu-abu.
+            PINK (str): Kode warna pink.
+            WHITE (str): Kode warna putih.
+            refresh_feed_fn (callable, optional): Fungsi untuk me-refresh feed
+                setelah post/story diedit atau dihapus dari profil.
+        """
         for w in parent.winfo_children():
             w.destroy()
 
@@ -2904,6 +3523,23 @@ class KizunaApp:
 
     def open_edit_profile(self, user, profile_page, LIGHT, DGRAY, GRAY, PINK, WHITE,
                           refresh_feed_fn=None):
+        """
+        Membuka dialog untuk mengedit profil pengguna.
+
+        Memungkinkan pengguna mengubah nama lengkap, username, email, bio,
+        dan password. Jika username diubah, semua postingan dan story pengguna
+        juga diperbarui ke username baru.
+
+        Args:
+            user (dict): Data pengguna yang akan diedit (dimodifikasi in-place).
+            profile_page (tk.Frame): Frame profil yang akan di-render ulang setelah disimpan.
+            LIGHT (str): Kode warna latar belakang terang.
+            DGRAY (str): Kode warna abu-abu gelap.
+            GRAY (str): Kode warna abu-abu.
+            PINK (str): Kode warna pink.
+            WHITE (str): Kode warna putih.
+            refresh_feed_fn (callable, optional): Fungsi untuk me-refresh feed setelah disimpan.
+        """
         win = tk.Toplevel(self.root)
         win.title("Edit Profil")
         win.geometry("360x420")
@@ -2963,6 +3599,17 @@ class KizunaApp:
                   bd=0, padx=14, pady=6, command=save).pack()
 
     def _open_social_connect(self, user, LIGHT, DGRAY, GRAY, PINK, WHITE):
+        """
+        Membuka jendela Toplevel untuk halaman Social Connect.
+
+        Args:
+            user (dict): Data pengguna yang sedang login.
+            LIGHT (str): Kode warna latar belakang terang.
+            DGRAY (str): Kode warna abu-abu gelap.
+            GRAY (str): Kode warna abu-abu.
+            PINK (str): Kode warna pink.
+            WHITE (str): Kode warna putih.
+        """
         win = tk.Toplevel(self.root)
         win.title("Social Connect")
         win.geometry("480x460")
