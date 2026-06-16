@@ -567,14 +567,15 @@ class KizunaApp:
         cards_row = tk.Frame(stat_section, bg=LIGHT)
         cards_row.pack(anchor="w")
         for icon, label, val, bg_col, fg_col in stat_items:
-            box = tk.Frame(cards_row, bg=bg_col, width=100, height=72,
+            box = tk.Frame(cards_row, bg=bg_col, width=128, height=84,
                            highlightthickness=1, highlightbackground="#ddd")
-            box.pack(side="left", padx=4)
+            box.pack(side="left", padx=3)
             box.pack_propagate(False)
             tk.Label(box, text=icon, font=("Segoe UI", 13), bg=bg_col).pack(pady=(8, 0))
             tk.Label(box, text=str(val), font=("Segoe UI", 13, "bold"),
                      bg=bg_col, fg=fg_col).pack()
-            tk.Label(box, text=label, font=("Segoe UI", 7), bg=bg_col, fg=GRAY).pack()
+            tk.Label(box, text=label, font=("Segoe UI", 8), bg=bg_col, fg=GRAY,
+                     wraplength=118, justify="center").pack(padx=2, pady=(0, 6))
 
         tk.Frame(inner, bg="#eeeeee", height=1).pack(fill="x", padx=16, pady=(4, 0))
 
