@@ -1,39 +1,122 @@
-# data.py
-
-login_attempts = 3
-current_user = None
-
-# Mock Database Users
-users = {
-    "admin": {
-        "fullname": "Administrator",
-        "username": "admin",
-        "email":    "admin@gmail.com",
-        "password": "admin123",
-        "role":     "Admin",
-        "bio":      "",
-    },
-    "moderator": {
-        "fullname": "Moderator",
-        "username": "moderator",
-        "email":    "mod@gmail.com",
-        "password": "mod12345",
-        "role":     "Moderator",
-        "bio":      "",
-    },
+{
+    "banned_words": [
+        "anjing", "babi", "bangsat", "kontol",
+        "memek", "tolol", "idiot", "bodoh"
+    ],
+    "posts": [
+        {
+            "id": 1,
+            "username": "rina",
+            "text": "Habis jalan-jalan ke Malioboro, suasananya keren banget! #jogja #traveling #lifestyle",
+            "likes": ["budi", "sari", "dito", "maya"],
+            "comments": [
+                {"id": 1, "username": "budi", "text": "Seru banget! Kapan-kapan ajak aku ya 😄"},
+                {"id": 2, "username": "dito", "text": "Malioboro emang juara!"}
+            ]
+        },
+        {
+            "id": 2,
+            "username": "budi",
+            "text": "Baru selesai bikin API REST dengan FastAPI, super cepat! #programming #python #teknologi",
+            "likes": ["rina", "sari", "maya"],
+            "comments": [
+                {"id": 3, "username": "rina", "text": "Wah keren, aku mau coba juga!"},
+                {"id": 4, "username": "maya", "text": "FastAPI emang mantap bgt"}
+            ]
+        },
+        {
+            "id": 3,
+            "username": "sari",
+            "text": "Golden hour di pantai Parangtritis hari ini, cantik poll 📸 #foto #lifestyle #jogja",
+            "likes": ["rina", "budi", "dito", "maya"],
+            "comments": [
+                {"id": 5, "username": "rina", "text": "Foto-fotonya bagus banget Sari!"},
+                {"id": 6, "username": "budi", "text": "Keren, pake kamera apa?"}
+            ]
+        },
+        {
+            "id": 4,
+            "username": "dito",
+            "text": "Review: Laptop gaming terbaru ini worth it nggak? Spoiler: worth it banget 🔥 #teknologi #gaming",
+            "likes": ["rina", "budi", "sari"],
+            "comments": [
+                {"id": 7, "username": "budi", "text": "Merk apa itu? Harga berapa?"}
+            ]
+        },
+        {
+            "id": 5,
+            "username": "maya",
+            "text": "Baru selesai baca 'Bumi Manusia' untuk ke-3 kalinya, selalu ada yang beda tiap baca. #buku #lifestyle",
+            "likes": ["rina", "budi", "dito"],
+            "comments": [
+                {"id": 8, "username": "rina", "text": "Aku juga suka buku itu banget!"}
+            ]
+        },
+        {
+            "id": 6,
+            "username": "rina",
+            "text": "Nyobain warung gudeg legendaris di Jogja, rasanya beda banget! #kuliner #jogja",
+            "likes": ["budi", "sari", "dito"],
+            "comments": [
+                {"id": 9, "username": "sari", "text": "Gudeg mana yang paling enak menurutmu?"}
+            ]
+        },
+        {
+            "id": 7,
+            "username": "budi",
+            "text": "Tips: gunakan virtual environment Python untuk setiap project kalian! #programming #python",
+            "likes": ["rina", "sari"],
+            "comments": []
+        },
+        {
+            "id": 8,
+            "username": "sari",
+            "text": "Workshop fotografi tadi seru banget, banyak belajar teknik baru #foto #lifestyle",
+            "likes": ["budi", "dito", "maya"],
+            "comments": []
+        },
+        {
+            "id": 9,
+            "username": "dito",
+            "text": "Update game favorit ku akhirnya keluar juga! #gaming #teknologi",
+            "likes": ["rina", "sari", "maya"],
+            "comments": []
+        },
+        {
+            "id": 10,
+            "username": "maya",
+            "text": "Quote hari ini: 'Membaca adalah jendela dunia' — setuju banget! #buku #motivasi",
+            "likes": ["budi", "dito"],
+            "comments": []
+        },
+        {
+            "id": 11,
+            "username": "rina",
+            "text": "Sunrise di Merapi pagi tadi, amazing! Worth banget bangun jam 3 pagi 🌄 #jogja #traveling",
+            "likes": ["sari", "dito", "maya"],
+            "comments": []
+        },
+        {
+            "id": 12,
+            "username": "budi",
+            "text": "Deploy pertama pakai Docker berhasil! Rasanya luar biasa 🐳 #programming #teknologi",
+            "likes": ["rina", "sari", "maya"],
+            "comments": []
+        }
+    ],
+    "stories": [
+        {"id": 1, "username": "rina",  "text": "Lagi di jalan menuju Borobudur! Excited banget 🏛️"},
+        {"id": 2, "username": "budi",  "text": "Kopi pagi sambil coding, perfect morning ☕"},
+        {"id": 3, "username": "sari",  "text": "Hasil jepretan tadi pagi, suka banget sama hasilnya 📷"},
+        {"id": 4, "username": "dito",  "text": "Gaming marathon malam ini! Siapa mau join? 🎮"},
+        {"id": 5, "username": "maya",  "text": "Kutipan favorit dari buku yang lagi aku baca hari ini 📖"}
+    ],
+    "follows": {
+        "rina":  ["budi", "sari", "dito", "maya"],
+        "budi":  ["rina", "sari", "dito"],
+        "sari":  ["rina", "budi", "maya"],
+        "dito":  ["rina", "budi", "sari", "maya"],
+        "maya":  ["rina", "sari"],
+        "admin": ["rina", "budi", "sari", "dito", "maya"]
+    }
 }
-
-posts = []
-stories = []
-next_post_id = 1
-next_story_id = 1
-next_comment_id = 1
-
-follows = {}       # {username: set(following_usernames)}
-communities = {}   # {hashtag: [post_ids]}
-violation_log = []  # {"username", "kata", "tipe", "ts"}
-
-banned_words = [
-    "anjing", "babi", "bangsat", "kontol",
-    "memek", "tolol", "idiot", "bodoh",
-]
