@@ -31,10 +31,7 @@ class KizunaApp:
         self.follows       = {}
         self.communities   = {}
         self.violation_log = []
-        self.banned_words  = [
-            "anjing", "babi", "bangsat", "kontol",
-            "memek", "tolol", "idiot", "bodoh",
-        ]
+        self.banned_words  = []
 
         self._seed_dummy_data()
 
@@ -121,105 +118,65 @@ class KizunaApp:
     # ─── DUMMY DATA ─────────────────────────────────────────────────────────
 
     def _seed_dummy_data(self):
+        self.data_file = "data.json"
+        if not os.path.exists(self.data_file):
+            return
+
+        with open(self.data_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        self.banned_words = data.get("banned_words", [])
+
         def ts_ago(minutes):
             return (datetime.now() - timedelta(minutes=minutes)).strftime("%d %b %Y %H:%M")
 
-        dummy_posts = [
-            ("rina",  "Habis jalan-jalan ke Malioboro, suasananya keren banget! #jogja #traveling #lifestyle",        120),
-            ("budi",  "Baru selesai bikin API REST dengan FastAPI, super cepat! #programming #python #teknologi",     95),
-            ("sari",  "Golden hour di pantai Parangtritis hari ini, cantik poll 📸 #foto #lifestyle #jogja",          80),
-            ("dito",  "Review: Laptop gaming terbaru ini worth it nggak? Spoiler: worth it banget 🔥 #teknologi #gaming", 70),
-            ("maya",  "Baru selesai baca 'Bumi Manusia' untuk ke-3 kalinya, selalu ada yang beda tiap baca. #buku #lifestyle", 65),
-            ("rina",  "Nyobain warung gudeg legendaris di Jogja, rasanya beda banget! #kuliner #jogja",               55),
-            ("budi",  "Tips: gunakan virtual environment Python untuk setiap project kalian! #programming #python",   50),
-            ("sari",  "Workshop fotografi tadi seru banget, banyak belajar teknik baru #foto #lifestyle",             45),
-            ("dito",  "Update game favorit ku akhirnya keluar juga! #gaming #teknologi",                             40),
-            ("maya",  "Quote hari ini: 'Membaca adalah jendela dunia' — setuju banget! #buku #motivasi",             35),
-            ("rina",  "Sunrise di Merapi pagi tadi, amazing! Worth banget bangun jam 3 pagi 🌄 #jogja #traveling",    30),
-            ("budi",  "Deploy pertama pakai Docker berhasil! Rasanya luar biasa 🐳 #programming #teknologi",          25),
-        ]
+        minutes_map     = [120, 95, 80, 70, 65, 55, 50, 45, 40, 35, 30, 25]
+        comment_minutes = [30, 25, 20, 45, 10, 55, 15, 40, 20]
+        comment_counter = 0
 
-        for uname, text, minutes in dummy_posts:
-            filtered, words = self.content_filter(text)
+        for i, p in enumerate(data.get("posts", [])):
+            _ts = ts_ago(minutes_map[i] if i < len(minutes_map) else 10)
+            filtered, words = self.content_filter(p["text"])
             if words:
-                self.log_violation(uname, words, "Post")
-            _ts = ts_ago(minutes)
-            p = {
-                "id":       self.next_post_id,
-                "username": uname,
+                self.log_violation(p["username"], words, "Post")
+            comments = []
+            for c in p.get("comments", []):
+                filtered_c, words_c = self.content_filter(c["text"])
+                comments.append({
+                    "id":       c["id"],
+                    "username": c["username"],
+                    "text":     filtered_c,
+                    "ts":       ts_ago(comment_minutes[comment_counter % len(comment_minutes)]),
+                })
+                comment_counter += 1
+                self.next_comment_id = max(self.next_comment_id, c["id"] + 1)
+
+            post = {
+                "id":       p["id"],
+                "username": p["username"],
                 "text":     filtered,
-                "likes":    [],
-                "comments": [],
+                "likes":    p.get("likes", []),
+                "comments": comments,
                 "ts":       _ts,
                 "raw_ts":   _ts,
             }
-            self.posts.append(p)
-            self.register_hashtags(p)
-            self.next_post_id += 1
+            self.posts.append(post)
+            self.register_hashtags(post)
+            self.next_post_id = max(self.next_post_id, p["id"] + 1)
 
-        likes_map = {
-            0: ["budi", "sari", "dito", "maya"],
-            1: ["rina", "sari", "maya"],
-            2: ["rina", "budi", "dito", "maya"],
-            3: ["rina", "budi", "sari"],
-            4: ["rina", "budi", "dito"],
-            5: ["budi", "sari", "dito"],
-            6: ["rina", "sari"],
-            7: ["budi", "dito", "maya"],
-            8: ["rina", "sari", "maya"],
-            9: ["budi", "dito"],
-            10: ["sari", "dito", "maya"],
-            11: ["rina", "sari", "maya"],
-        }
-        for idx, likers in likes_map.items():
-            if idx < len(self.posts):
-                self.posts[idx]["likes"] = likers
-
-        dummy_comments = [
-            (0, "budi",  "Seru banget! Kapan-kapan ajak aku ya 😄"),
-            (0, "dito",  "Malioboro emang juara!"),
-            (1, "rina",  "Wah keren, aku mau coba juga!"),
-            (1, "maya",  "FastAPI emang mantap bgt"),
-            (2, "rina",  "Foto-fotonya bagus banget Sari!"),
-            (2, "budi",  "Keren, pake kamera apa?"),
-            (3, "budi",  "Merk apa itu? Harga berapa?"),
-            (4, "rina",  "Aku juga suka buku itu banget!"),
-            (5, "sari",  "Gudeg mana yang paling enak menurutmu?"),
-        ]
-        for post_idx, commenter, text in dummy_comments:
-            if post_idx < len(self.posts):
-                self.posts[post_idx]["comments"].append({
-                    "id":       self.next_comment_id,
-                    "username": commenter,
-                    "text":     text,
-                    "ts":       ts_ago(random.randint(5, 60)),
-                })
-                self.next_comment_id += 1
-
-        dummy_stories = [
-            ("rina",  "Lagi di jalan menuju Borobudur! Excited banget 🏛️"),
-            ("budi",  "Kopi pagi sambil coding, perfect morning ☕"),
-            ("sari",  "Hasil jepretan tadi pagi, suka banget sama hasilnya 📷"),
-            ("dito",  "Gaming marathon malam ini! Siapa mau join? 🎮"),
-            ("maya",  "Kutipan favorit dari buku yang lagi aku baca hari ini 📖"),
-        ]
-        for uname, text in dummy_stories:
-            filtered, _ = self.content_filter(text)
+        story_minutes = [30, 60, 90, 120, 150]
+        for i, s in enumerate(data.get("stories", [])):
+            filtered, _ = self.content_filter(s["text"])
             self.stories.append({
-                "id":       self.next_story_id,
-                "username": uname,
+                "id":       s["id"],
+                "username": s["username"],
                 "text":     filtered,
-                "ts":       ts_ago(random.randint(10, 200)),
+                "ts":       ts_ago(story_minutes[i] if i < len(story_minutes) else 60),
             })
-            self.next_story_id += 1
+            self.next_story_id = max(self.next_story_id, s["id"] + 1)
 
         self.follows = {
-            "rina":  {"budi", "sari", "dito", "maya"},
-            "budi":  {"rina", "sari", "dito"},
-            "sari":  {"rina", "budi", "maya"},
-            "dito":  {"rina", "budi", "sari", "maya"},
-            "maya":  {"rina", "sari"},
-            "admin": {"rina", "budi", "sari", "dito", "maya"},
+            k: set(v) for k, v in data.get("follows", {}).items()
         }
 
     # ─── UTILS ───────────────────────────────────────────────────────────────
