@@ -1116,9 +1116,15 @@ class KizunaApp:
         page = tk.Frame(parent, bg="#f9f9f9")
         tk.Label(page, text="Kelola User", font=("Segoe UI", 14, "bold"),
                  bg="#f9f9f9").pack(pady=10)
+
+        top_bar = tk.Frame(page, bg="#f9f9f9")
+        top_bar.pack(fill="x", padx=16, pady=(0, 6))
+
         lf = tk.Frame(page, bg="#f9f9f9")
         lf.pack(fill="both", expand=True, padx=16)
         _, inner = self.make_scrollable(lf)
+
+        ROLE_OPTIONS = ["User", "Moderator", "Admin"]
 
         def refresh():
             for w in inner.winfo_children():
@@ -1134,12 +1140,7 @@ class KizunaApp:
 
                 def make_edit(uname=u["username"]):
                     def do():
-                        new_fn = simpledialog.askstring(
-                            "Edit", "Nama Lengkap baru:",
-                            initialvalue=self.users[uname]["fullname"], parent=self.root)
-                        if new_fn:
-                            self.users[uname]["fullname"] = new_fn
-                            refresh()
+                        self._open_edit_user_dialog(uname, ROLE_OPTIONS, refresh)
                     return do
 
                 def make_del(uname=u["username"]):
@@ -1151,6 +1152,7 @@ class KizunaApp:
                             del self.users[uname]
                             self.posts   = [p for p in self.posts   if p["username"] != uname]
                             self.stories = [s for s in self.stories if s["username"] != uname]
+                            self._save_users()
                             refresh()
                     return do
 
@@ -1161,8 +1163,150 @@ class KizunaApp:
                 tk.Button(bf, text="Hapus", font=("Segoe UI", 8), bg="tomato",
                           fg="white", bd=0, padx=4, command=make_del()).pack(side="left")
 
+        def open_create():
+            self._open_create_user_dialog(ROLE_OPTIONS, refresh)
+
+        tk.Button(top_bar, text="➕  Buat Akun Baru", font=("Segoe UI", 9, "bold"),
+                  bg="#ffc0cb", bd=0, padx=10, pady=5,
+                  cursor="hand2", command=open_create).pack(side="left")
+
         refresh()
         return page
+
+    # ─── EDIT USER (termasuk ganti role) ─────────────────────────────────────
+
+    def _open_edit_user_dialog(self, uname, role_options, refresh_fn):
+        u = self.users[uname]
+        win = tk.Toplevel(self.root)
+        win.title(f"Edit User — @{uname}")
+        win.geometry("360x380")
+        win.config(bg="white")
+        win.grab_set()
+
+        tk.Label(win, text="Edit User", font=("Segoe UI", 13, "bold"),
+                 bg="white").pack(pady=12)
+
+        tk.Label(win, text="Nama Lengkap", bg="white", font=("Segoe UI", 9)).pack(anchor="w", padx=20)
+        fn_entry = tk.Entry(win, width=36, font=("Segoe UI", 10))
+        fn_entry.insert(0, u["fullname"])
+        fn_entry.pack(padx=20, pady=(2, 8))
+
+        tk.Label(win, text="Email", bg="white", font=("Segoe UI", 9)).pack(anchor="w", padx=20)
+        email_entry = tk.Entry(win, width=36, font=("Segoe UI", 10))
+        email_entry.insert(0, u["email"])
+        email_entry.pack(padx=20, pady=(2, 8))
+
+        tk.Label(win, text="Role", bg="white", font=("Segoe UI", 9)).pack(anchor="w", padx=20)
+        role_var = tk.StringVar(value=u.get("role", "User"))
+        role_row = tk.Frame(win, bg="white")
+        role_row.pack(padx=20, pady=(2, 8), anchor="w")
+        for opt in role_options:
+            tk.Radiobutton(role_row, text=opt, variable=role_var, value=opt,
+                           bg="white", font=("Segoe UI", 9)).pack(side="left", padx=(0, 10))
+
+        tk.Label(win, text="Password Baru (kosongkan jika tidak diubah)",
+                 bg="white", font=("Segoe UI", 9)).pack(anchor="w", padx=20)
+        pwd_entry = tk.Entry(win, width=36, show="*", font=("Segoe UI", 10))
+        pwd_entry.pack(padx=20, pady=(2, 12))
+
+        def save():
+            if uname in ("admin", "moderator") and role_var.get() != u.get("role", "User"):
+                if not messagebox.askyesno(
+                        "Konfirmasi",
+                        "Akun ini adalah akun default. Yakin ingin mengubah role-nya?",
+                        parent=win):
+                    return
+            new_fn    = fn_entry.get().strip()
+            new_email = email_entry.get().strip()
+            if not new_fn or not new_email:
+                messagebox.showerror("Error", "Nama dan email tidak boleh kosong", parent=win)
+                return
+            new_pwd = pwd_entry.get().strip()
+            if new_pwd:
+                if len(new_pwd) < 8 or not any(c.isdigit() for c in new_pwd):
+                    messagebox.showerror("Error",
+                        "Password minimal 8 karakter dan mengandung angka", parent=win)
+                    return
+                u["password"] = new_pwd
+
+            u["fullname"] = new_fn
+            u["email"]    = new_email
+            u["role"]     = role_var.get()
+            self._save_users()
+            win.destroy()
+            refresh_fn()
+            messagebox.showinfo("Sukses", f"User @{uname} berhasil diperbarui.")
+
+        tk.Button(win, text="Simpan", bg="#ffc0cb", font=("Segoe UI", 10, "bold"),
+                  bd=0, padx=14, pady=6, command=save).pack(pady=4)
+
+    # ─── CREATE USER (admin bisa langsung set role) ──────────────────────────
+
+    def _open_create_user_dialog(self, role_options, refresh_fn):
+        win = tk.Toplevel(self.root)
+        win.title("Buat Akun Baru")
+        win.geometry("360x460")
+        win.config(bg="white")
+        win.grab_set()
+
+        tk.Label(win, text="Buat Akun Baru", font=("Segoe UI", 13, "bold"),
+                 bg="white").pack(pady=12)
+
+        fields = {}
+        for label, key in [("Nama Lengkap", "fullname"), ("Username", "username"),
+                            ("Email", "email")]:
+            tk.Label(win, text=label, bg="white", font=("Segoe UI", 9)).pack(anchor="w", padx=20)
+            e = tk.Entry(win, width=36, font=("Segoe UI", 10))
+            e.pack(padx=20, pady=(2, 8))
+            fields[key] = e
+
+        tk.Label(win, text="Password", bg="white", font=("Segoe UI", 9)).pack(anchor="w", padx=20)
+        pwd_entry = tk.Entry(win, width=36, show="*", font=("Segoe UI", 10))
+        pwd_entry.pack(padx=20, pady=(2, 8))
+
+        tk.Label(win, text="Role", bg="white", font=("Segoe UI", 9)).pack(anchor="w", padx=20)
+        role_var = tk.StringVar(value="User")
+        role_row = tk.Frame(win, bg="white")
+        role_row.pack(padx=20, pady=(2, 12), anchor="w")
+        for opt in role_options:
+            tk.Radiobutton(role_row, text=opt, variable=role_var, value=opt,
+                           bg="white", font=("Segoe UI", 9)).pack(side="left", padx=(0, 10))
+
+        def save():
+            fullname = fields["fullname"].get().strip()
+            username = fields["username"].get().strip()
+            email    = fields["email"].get().strip()
+            password = pwd_entry.get().strip()
+
+            if not fullname or not username or not email:
+                messagebox.showerror("Error", "Semua field wajib diisi", parent=win)
+                return
+            if username in self.users:
+                messagebox.showerror("Error", "Username sudah digunakan", parent=win)
+                return
+            if any(email == u["email"] for u in self.users.values()):
+                messagebox.showerror("Error", "Email sudah digunakan", parent=win)
+                return
+            if len(password) < 8 or not any(c.isdigit() for c in password):
+                messagebox.showerror("Error",
+                    "Password minimal 8 karakter dan mengandung angka", parent=win)
+                return
+
+            self.users[username] = {
+                "fullname": fullname,
+                "username": username,
+                "email":    email,
+                "password": password,
+                "role":     role_var.get(),
+                "bio":      "",
+            }
+            self._save_users()
+            win.destroy()
+            refresh_fn()
+            messagebox.showinfo("Sukses", f"Akun @{username} ({role_var.get()}) berhasil dibuat.")
+
+        tk.Button(win, text="Buat Akun", bg="#ffc0cb", font=("Segoe UI", 10, "bold"),
+                  bd=0, padx=14, pady=6, command=save).pack(pady=4)
 
     def _admin_page_mod_list(self, parent, kind):
         title = "Moderasi Postingan" if kind == "post" else "Moderasi Stories"
