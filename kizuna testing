@@ -889,6 +889,7 @@ class KizunaApp:
                 if messagebox.askyesno("Hapus Post", "Hapus postingan ini?"):
                     self.unregister_hashtags_for_post(pid)
                     self.posts = [x for x in self.posts if x["id"] != pid]
+                    self._save_data()
                     refresh_fn()
             return do
 
@@ -1379,6 +1380,7 @@ class KizunaApp:
                                 self.posts   = [x for x in self.posts   if x["id"] != iid]
                             else:
                                 self.stories = [x for x in self.stories if x["id"] != iid]
+                            self._save_data()
                             refresh()
                     return do
 
@@ -1716,6 +1718,7 @@ class KizunaApp:
                         if messagebox.askyesno("Hapus Post", "Hapus postingan ini?"):
                             self.unregister_hashtags_for_post(pid)
                             self.posts = [x for x in self.posts if x["id"] != pid]
+                            self._save_data()
                             refresh()
                     return do
 
@@ -2349,6 +2352,7 @@ class KizunaApp:
                                            "Apakah kamu yakin ingin menghapus postingan ini?"):
                         self.unregister_hashtags_for_post(pid)
                         self.posts = [p for p in self.posts if p["id"] != pid]
+                        self._save_data()
                         refresh_feed_fn()
                 return do
 
@@ -2898,6 +2902,7 @@ class KizunaApp:
                             if messagebox.askyesno("Hapus Post", "Hapus postingan ini?"):
                                 self.unregister_hashtags_for_post(pp["id"])
                                 self.posts = [x for x in self.posts if x["id"] != pp["id"]]
+                                self._save_data()
                                 if refresh_feed_fn:
                                     refresh_feed_fn()
                                 render_tab()
