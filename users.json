@@ -1,0 +1,58 @@
+{
+    "admin": {
+        "fullname": "Administrator",
+        "username": "admin",
+        "email": "admin@gmail.com",
+        "password": "admin123",
+        "role": "Admin",
+        "bio": "Pengelola platform Kizuna 🛡️"
+    },
+    "moderator": {
+        "fullname": "Moderator",
+        "username": "moderator",
+        "email": "mod@gmail.com",
+        "password": "mod12345",
+        "role": "Moderator",
+        "bio": "Menjaga komunitas tetap aman 🔍"
+    },
+    "rina": {
+        "fullname": "Rina Kusuma",
+        "username": "rina",
+        "email": "rina@gmail.com",
+        "password": "rina1234",
+        "role": "User",
+        "bio": "Suka traveling & kuliner 🌏"
+    },
+    "budi": {
+        "fullname": "Budi Santoso",
+        "username": "budi",
+        "email": "budi@gmail.com",
+        "password": "budi1234",
+        "role": "User",
+        "bio": "Developer & coffee addict ☕"
+    },
+    "sari": {
+        "fullname": "Sari Dewi",
+        "username": "sari",
+        "email": "sari@gmail.com",
+        "password": "sari1234",
+        "role": "User",
+        "bio": "Photography enthusiast 📸"
+    },
+    "dito": {
+        "fullname": "Dito Prasetyo",
+        "username": "dito",
+        "email": "dito@gmail.com",
+        "password": "dito1234",
+        "role": "User",
+        "bio": "Gamer & tech reviewer 🎮"
+    },
+    "maya": {
+        "fullname": "Maya Anggraini",
+        "username": "maya",
+        "email": "maya@gmail.com",
+        "password": "maya1234",
+        "role": "User",
+        "bio": "Penulis & book lover 📚"
+    }
+}
