@@ -324,8 +324,10 @@ class KizunaApp:
         sb     = tk.Scrollbar(parent, orient="vertical", command=canvas.yview)
         inner  = tk.Frame(canvas, bg=bg)
         inner.bind("<Configure>",
-                   lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
-        canvas.create_window((0, 0), window=inner, anchor="nw")
+               lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        win_id = canvas.create_window((0, 0), window=inner, anchor="nw")
+        canvas.bind("<Configure>",
+                lambda e: canvas.itemconfig(win_id, width=e.width))
         canvas.configure(yscrollcommand=sb.set)
         canvas.pack(side="left", fill="both", expand=True)
         sb.pack(side="right", fill="y")
@@ -2093,8 +2095,10 @@ class KizunaApp:
                  bg=LIGHT, fg=GRAY).pack(pady=4)
 
         # ── Stats ─────────────────────────────────────────────────────────────
-        stats_frame = tk.Frame(body_inner, bg=LIGHT)
-        stats_frame.pack(pady=6)
+        stats_wrapper = tk.Frame(body_inner, bg=LIGHT)
+        stats_wrapper.pack(pady=6)
+        stats_frame = tk.Frame(stats_wrapper, bg=LIGHT)
+        stats_frame.pack(anchor="center")
         user_posts      = [p for p in self.posts   if p["username"] == user["username"]]
         user_stories    = [s for s in self.stories if s["username"] == user["username"]]
         following_count = len(self.follows.get(user["username"], set()))
