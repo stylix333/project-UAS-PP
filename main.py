@@ -1,11 +1,10 @@
-# main.py
-import tkinter as tk
-from gui import KizunaApp
+from gui import KizunaGUI
+from logic import KizunaLogic
 
 def main():
-    root = tk.Tk()
-    app = KizunaApp(root)
-    root.mainloop()
+    logic = KizunaLogic()
+    app = KizunaGUI(logic)
+    app.run()
 
 if __name__ == "__main__":
     main()
