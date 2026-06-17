@@ -1,5 +1,5 @@
 """
-logic.py — Fungsi logika bisnis Kizuna (tanpa tkinter).
+logic.py — Data dan logika bisnis Kizuna (tanpa tkinter).
 
 Berisi:
 - Utilitas waktu
@@ -8,12 +8,21 @@ Berisi:
 - Perhitungan feed score
 - Manajemen hashtag
 - Manajemen follow
+- KizunaApp: kelas yang menyimpan seluruh state aplikasi (users, posts,
+  stories, follows, communities, violation_log) beserta operasi CRUD-nya.
+  Kelas ini tidak bergantung pada tkinter sama sekali — semua tampilan
+  ditangani oleh KizunaGUI (lihat gui.py).
 """
 
 import re
+import os
+import json
 import math
-from datetime import datetime
+import random
+from datetime import datetime, timedelta
 
+
+# ─── FUNGSI UTILITAS MURNI ──────────────────────────────────────────────────
 
 def now_str():
     """
@@ -172,3 +181,600 @@ def toggle_follow(follows, follower, target):
         follows[follower].discard(target)
     else:
         follows[follower].add(target)
+
+
+# ─── KIZUNA APP (DATA + LOGIKA BERSTATE) ────────────────────────────────────
+
+class KizunaApp:
+    """
+    Menyimpan seluruh state aplikasi Kizuna dan menyediakan operasi CRUD
+    untuk users, posts, stories, comments, follow, dan hashtag.
+
+    Kelas ini sengaja tidak menyentuh tkinter sama sekali. Semua tampilan
+    (jendela, dialog, dsb) ditangani oleh KizunaGUI yang menerima instance
+    KizunaApp ini lewat parameter `app`.
+    """
+
+    _DEFAULT_USERS = {
+        "admin": {
+            "fullname": "Admin Kizuna", "username": "admin",
+            "email": "admin@kizuna.app", "password": "admin123",
+            "role": "Admin", "bio": "",
+        },
+        "moderator": {
+            "fullname": "Moderator Kizuna", "username": "moderator",
+            "email": "moderator@kizuna.app", "password": "mod12345",
+            "role": "Moderator", "bio": "",
+        },
+        "rina": {
+            "fullname": "Rina Amelia", "username": "rina",
+            "email": "rina@kizuna.app", "password": "rina1234",
+            "role": "User", "bio": "Suka kucing dan kopi ☕",
+        },
+    }
+
+    def __init__(self, users_file="users.json", data_file="data.json"):
+        """
+        Inisialisasi data aplikasi: memuat users dari JSON, menyiapkan
+        struktur data kosong, lalu memuat data tersimpan (posts, stories,
+        follows, dsb) jika ada.
+        """
+        self.users_file = users_file
+        self.data_file  = data_file
+
+        self.users = self._load_users()
+
+        self.next_post_id    = 1
+        self.next_story_id   = 1
+        self.next_comment_id = 1
+
+        self.posts          = []
+        self.stories         = []
+        self.follows         = {}
+        self.communities     = {}
+        self.violation_log   = []
+        self.banned_words    = ["anjing", "bangsat", "kontol", "bajingan"]
+
+        self._load_data()
+        if not self.posts and not self.stories:
+            self._seed_dummy_data()
+
+    # ─── USER JSON ───────────────────────────────────────────────────────
+
+    def _load_users(self):
+        """
+        Memuat data pengguna dari file JSON.
+
+        Jika file tidak ditemukan atau rusak, data default akan digunakan
+        dan disimpan ke file baru.
+
+        Returns:
+            dict: Kamus pengguna dengan username sebagai kunci.
+        """
+        if os.path.exists(self.users_file):
+            try:
+                with open(self.users_file, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except (json.JSONDecodeError, IOError):
+                pass
+        self._save_users(self._DEFAULT_USERS)
+        return dict(self._DEFAULT_USERS)
+
+    def _save_users(self, data=None):
+        """
+        Menyimpan data pengguna ke file JSON.
+
+        Args:
+            data (dict, optional): Data pengguna yang akan disimpan.
+                Jika None, menggunakan self.users.
+        """
+        if data is None:
+            data = self.users
+        with open(self.users_file, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
+
+    # ─── DATA JSON (posts, stories, follows, dst) ──────────────────────────
+
+    def _load_data(self):
+        """
+        Memuat data aplikasi (banned_words, posts, stories, follows,
+        violation_log) dari file JSON jika tersedia.
+        """
+        if not os.path.exists(self.data_file):
+            return
+        try:
+            with open(self.data_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, IOError):
+            return
+
+        self.banned_words  = data.get("banned_words", self.banned_words)
+        self.violation_log = data.get("violation_log", [])
+        self.posts         = data.get("posts", [])
+        self.stories       = data.get("stories", [])
+        self.follows       = {k: set(v) for k, v in data.get("follows", {}).items()}
+
+        for p in self.posts:
+            self.next_post_id = max(self.next_post_id, p["id"] + 1)
+            for c in p.get("comments", []):
+                self.next_comment_id = max(self.next_comment_id, c["id"] + 1)
+            self.register_hashtags(p)
+        for s in self.stories:
+            self.next_story_id = max(self.next_story_id, s["id"] + 1)
+
+    def _save_data(self):
+        """
+        Menyimpan seluruh state aplikasi (banned_words, posts, stories,
+        follows, violation_log) ke file JSON.
+        """
+        data = {
+            "banned_words":   self.banned_words,
+            "violation_log":  self.violation_log,
+            "posts":          self.posts,
+            "stories":        self.stories,
+            "follows":        {k: list(v) for k, v in self.follows.items()},
+        }
+        with open(self.data_file, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
+
+    # ─── DUMMY DATA (hanya dipakai saat belum ada data sama sekali) ────────
+
+    def _seed_dummy_data(self):
+        """
+        Mengisi data awal (dummy) supaya aplikasi tidak kosong saat
+        pertama kali dijalankan tanpa data.json.
+        """
+        def ts_ago(minutes):
+            return (datetime.now() - timedelta(minutes=minutes)).strftime("%d %b %Y %H:%M")
+
+        dummy_posts = [
+            {"username": "rina",      "text": "Halo Kizuna! Selamat datang di platform baru kita #kizuna #halo"},
+            {"username": "admin",     "text": "Selamat menggunakan Kizuna, jaga sopan santun ya! #kizuna"},
+            {"username": "moderator", "text": "Konten yang melanggar akan kami tindak tegas #aturan"},
+        ]
+        dummy_stories = [
+            {"username": "rina", "text": "Pagi yang cerah ☀️"},
+        ]
+
+        minutes_map = [120, 95, 80, 70, 65, 55, 50, 45, 40, 35, 30, 25]
+        for i, p in enumerate(dummy_posts):
+            _ts = ts_ago(minutes_map[i] if i < len(minutes_map) else 10)
+            filtered, words = self.content_filter(p["text"])
+            if words:
+                self.log_violation(p["username"], words, "Post")
+            post = {
+                "id":       self.next_post_id,
+                "username": p["username"],
+                "text":     filtered,
+                "likes":    [],
+                "comments": [],
+                "ts":       _ts,
+                "raw_ts":   _ts,
+            }
+            self.posts.append(post)
+            self.register_hashtags(post)
+            self.next_post_id += 1
+
+        story_minutes = [30, 60, 90, 120, 150]
+        for i, s in enumerate(dummy_stories):
+            filtered, _ = self.content_filter(s["text"])
+            _ts = ts_ago(story_minutes[i] if i < len(story_minutes) else 60)
+            self.stories.append({
+                "id":       self.next_story_id,
+                "username": s["username"],
+                "text":     filtered,
+                "ts":       _ts,
+            })
+            self.next_story_id += 1
+
+        self._save_data()
+
+    # ─── AUTH ───────────────────────────────────────────────────────────
+
+    def authenticate(self, identifier, password):
+        """
+        Mencocokkan identifier (username atau email) dan password.
+
+        Args:
+            identifier (str): Username atau email yang dimasukkan.
+            password (str): Password yang dimasukkan.
+
+        Returns:
+            dict | None: Data pengguna jika cocok, None jika tidak ditemukan.
+        """
+        for user in self.users.values():
+            if (identifier == user["username"] or identifier == user["email"]) \
+                    and password == user["password"]:
+                return user
+        return None
+
+    def register_user(self, fullname, username, email, password, role="User"):
+        """
+        Mendaftarkan pengguna baru setelah validasi.
+
+        Args:
+            fullname (str): Nama lengkap.
+            username (str): Username unik.
+            email (str): Email unik.
+            password (str): Password (minimal 8 karakter, mengandung angka).
+            role (str): Role pengguna ("User", "Moderator", "Admin").
+
+        Returns:
+            tuple: (ok (bool), error_message (str | None))
+        """
+        if not fullname or not username or not email:
+            return False, "Semua field wajib diisi"
+        for u in self.users.values():
+            if username == u["username"]:
+                return False, "Username sudah digunakan"
+            if email == u["email"]:
+                return False, "Email sudah digunakan"
+        if len(password) < 8:
+            return False, "Password minimal 8 karakter"
+        if not any(c.isdigit() for c in password):
+            return False, "Password wajib mengandung angka"
+
+        self.users[username] = {
+            "fullname": fullname, "username": username,
+            "email": email, "password": password, "role": role, "bio": "",
+        }
+        self._save_users()
+        return True, None
+
+    def update_user(self, username, fullname=None, email=None, bio=None,
+                     new_username=None, new_password=None, role=None):
+        """
+        Memperbarui data pengguna yang sudah ada.
+
+        Args:
+            username (str): Username pengguna yang akan diperbarui (key saat ini).
+            fullname (str, optional): Nama lengkap baru.
+            email (str, optional): Email baru.
+            bio (str, optional): Bio baru.
+            new_username (str, optional): Username baru (mengganti key).
+            new_password (str, optional): Password baru.
+            role (str, optional): Role baru.
+
+        Returns:
+            tuple: (ok (bool), error_message (str | None))
+        """
+        if username not in self.users:
+            return False, "Pengguna tidak ditemukan"
+        u = self.users[username]
+
+        if new_username and new_username != username:
+            if new_username in self.users:
+                return False, "Username sudah digunakan"
+            for p in self.posts:
+                if p["username"] == username:
+                    p["username"] = new_username
+            for s in self.stories:
+                if s["username"] == username:
+                    s["username"] = new_username
+            for p in self.posts:
+                for c in p.get("comments", []):
+                    if c["username"] == username:
+                        c["username"] = new_username
+                p["likes"] = [new_username if l == username else l for l in p["likes"]]
+            if username in self.follows:
+                self.follows[new_username] = self.follows.pop(username)
+            for follower_set in self.follows.values():
+                if username in follower_set:
+                    follower_set.discard(username)
+                    follower_set.add(new_username)
+            del self.users[username]
+            u["username"] = new_username
+            self.users[new_username] = u
+            username = new_username
+
+        if fullname is not None:
+            u["fullname"] = fullname
+        if email is not None:
+            u["email"] = email
+        if bio is not None:
+            u["bio"] = bio
+        if new_password:
+            u["password"] = new_password
+        if role is not None:
+            u["role"] = role
+
+        self._save_users()
+        self._save_data()
+        return True, None
+
+    def delete_user(self, username):
+        """
+        Menghapus pengguna beserta seluruh postingan, story, dan komentarnya.
+
+        Args:
+            username (str): Username pengguna yang akan dihapus.
+
+        Returns:
+            tuple: (ok (bool), error_message (str | None))
+        """
+        if username not in self.users:
+            return False, "Pengguna tidak ditemukan"
+        if self.users[username].get("role") == "Admin":
+            return False, "Tidak dapat menghapus akun Admin"
+
+        for p in [p for p in self.posts if p["username"] == username]:
+            self.unregister_hashtags_for_post(p["id"])
+        self.posts   = [p for p in self.posts if p["username"] != username]
+        self.stories = [s for s in self.stories if s["username"] != username]
+        for p in self.posts:
+            p["comments"] = [c for c in p.get("comments", []) if c["username"] != username]
+            if username in p["likes"]:
+                p["likes"].remove(username)
+        self.follows.pop(username, None)
+        for follower_set in self.follows.values():
+            follower_set.discard(username)
+
+        del self.users[username]
+        self._save_users()
+        self._save_data()
+        return True, None
+
+    # ─── CONTENT FILTER / VIOLATION (wrapper berstate) ─────────────────────
+
+    def content_filter(self, text):
+        """Wrapper berstate dari fungsi content_filter, memakai self.banned_words."""
+        return content_filter(text, self.banned_words)
+
+    def log_violation(self, username, words, tipe):
+        """Wrapper berstate dari fungsi log_violation, memakai self.violation_log."""
+        log_violation(self.violation_log, username, words, tipe)
+        self._save_data()
+
+    # ─── HASHTAG (wrapper berstate) ─────────────────────────────────────
+
+    def extract_hashtags(self, text):
+        """Wrapper dari fungsi extract_hashtags (tidak butuh state, disediakan untuk konsistensi API)."""
+        return extract_hashtags(text)
+
+    def register_hashtags(self, post):
+        """Wrapper berstate dari fungsi register_hashtags, memakai self.communities."""
+        register_hashtags(self.communities, post)
+
+    def unregister_hashtags_for_post(self, post_id):
+        """Wrapper berstate dari fungsi unregister_hashtags_for_post, memakai self.communities."""
+        unregister_hashtags_for_post(self.communities, post_id)
+
+    # ─── FOLLOW (wrapper berstate) ───────────────────────────────────────
+
+    def is_following(self, follower, target):
+        """Wrapper berstate dari fungsi is_following, memakai self.follows."""
+        return is_following(self.follows, follower, target)
+
+    def toggle_follow(self, follower, target):
+        """Wrapper berstate dari fungsi toggle_follow, memakai self.follows."""
+        toggle_follow(self.follows, follower, target)
+        self._save_data()
+
+    # ─── FEED SCORE (wrapper, tidak butuh state) ───────────────────────────
+
+    def feed_score(self, post):
+        """Wrapper dari fungsi feed_score (tidak butuh state, disediakan untuk konsistensi API)."""
+        return feed_score(post)
+
+    # ─── POST CRUD ─────────────────────────────────────────────────────
+
+    def add_post(self, username, text):
+        """
+        Membuat postingan baru.
+
+        Args:
+            username (str): Username pembuat postingan.
+            text (str): Isi teks postingan.
+
+        Returns:
+            dict | None: Data postingan baru, atau None jika teks kosong.
+        """
+        text = text.strip()
+        if not text:
+            return None
+        filtered, words = self.content_filter(text)
+        if words:
+            self.log_violation(username, words, "Post")
+        _ts = now_str()
+        new_post = {
+            "id":       self.next_post_id,
+            "username": username,
+            "text":     filtered,
+            "likes":    [],
+            "comments": [],
+            "ts":       _ts,
+            "raw_ts":   _ts,
+        }
+        self.posts.append(new_post)
+        self.register_hashtags(new_post)
+        self.next_post_id += 1
+        self._save_data()
+        return new_post
+
+    def edit_post(self, post, new_text, editor_username):
+        """
+        Mengedit teks sebuah postingan, menyaring ulang kata terlarang,
+        dan memperbarui daftar hashtag-nya.
+
+        Args:
+            post (dict): Data postingan yang akan diedit (diperbarui in-place).
+            new_text (str): Teks baru.
+            editor_username (str): Username yang melakukan edit.
+        """
+        filtered, words = self.content_filter(new_text)
+        if words:
+            self.log_violation(editor_username, words, "Post (Edit)")
+        self.unregister_hashtags_for_post(post["id"])
+        post["text"]   = filtered
+        post["edited"] = True
+        self.register_hashtags(post)
+        self._save_data()
+
+    def delete_post(self, post_id):
+        """
+        Menghapus postingan berdasarkan ID beserta entri hashtag-nya.
+
+        Args:
+            post_id (int): ID postingan yang akan dihapus.
+        """
+        self.unregister_hashtags_for_post(post_id)
+        self.posts = [p for p in self.posts if p["id"] != post_id]
+        self._save_data()
+
+    def toggle_like(self, post, username):
+        """
+        Mengubah status like sebuah postingan oleh seorang pengguna.
+
+        Args:
+            post (dict): Data postingan (diperbarui in-place).
+            username (str): Username yang melakukan like/unlike.
+
+        Returns:
+            bool: True jika sekarang ter-like, False jika unlike.
+        """
+        if username in post["likes"]:
+            post["likes"].remove(username)
+            liked_now = False
+        else:
+            post["likes"].append(username)
+            liked_now = True
+        self._save_data()
+        return liked_now
+
+    # ─── COMMENT CRUD ──────────────────────────────────────────────────
+
+    def add_comment(self, post, username, text):
+        """
+        Menambahkan komentar baru ke sebuah postingan.
+
+        Args:
+            post (dict): Data postingan yang akan dikomentari (diperbarui in-place).
+            username (str): Username pemberi komentar.
+            text (str): Isi komentar.
+
+        Returns:
+            dict | None: Data komentar baru, atau None jika teks kosong.
+        """
+        text = text.strip()
+        if not text:
+            return None
+        filtered, words = self.content_filter(text)
+        if words:
+            self.log_violation(username, words, "Komentar")
+        comment = {
+            "id":       self.next_comment_id,
+            "username": username,
+            "text":     filtered,
+            "ts":       now_str(),
+        }
+        post.setdefault("comments", []).append(comment)
+        self.next_comment_id += 1
+        self._save_data()
+        return comment
+
+    def edit_comment(self, comment, new_text, editor_username):
+        """
+        Mengedit teks sebuah komentar, menyaring ulang kata terlarang.
+
+        Args:
+            comment (dict): Data komentar yang akan diedit (diperbarui in-place).
+            new_text (str): Teks baru.
+            editor_username (str): Username yang melakukan edit.
+        """
+        filtered, words = self.content_filter(new_text)
+        if words:
+            self.log_violation(editor_username, words, "Komentar (Edit)")
+        comment["text"]   = filtered
+        comment["edited"] = True
+        self._save_data()
+
+    def delete_comment(self, post, comment_id):
+        """
+        Menghapus komentar dari sebuah postingan berdasarkan ID.
+
+        Args:
+            post (dict): Data postingan (diperbarui in-place).
+            comment_id (int): ID komentar yang akan dihapus.
+        """
+        post["comments"] = [c for c in post.get("comments", []) if c["id"] != comment_id]
+        self._save_data()
+
+    # ─── STORY CRUD ────────────────────────────────────────────────────
+
+    def add_story(self, username, text):
+        """
+        Membuat story baru.
+
+        Args:
+            username (str): Username pembuat story.
+            text (str): Isi teks story.
+
+        Returns:
+            dict | None: Data story baru, atau None jika teks kosong.
+        """
+        text = text.strip()
+        if not text:
+            return None
+        filtered, words = self.content_filter(text)
+        if words:
+            self.log_violation(username, words, "Story")
+        story = {
+            "id":       self.next_story_id,
+            "username": username,
+            "text":     filtered,
+            "ts":       now_str(),
+        }
+        self.stories.append(story)
+        self.next_story_id += 1
+        self._save_data()
+        return story
+
+    def delete_story(self, story_id):
+        """
+        Menghapus story berdasarkan ID.
+
+        Args:
+            story_id (int): ID story yang akan dihapus.
+        """
+        self.stories = [s for s in self.stories if s["id"] != story_id]
+        self._save_data()
+
+    # ─── ANALYTICS EXPORT ──────────────────────────────────────────────
+
+    def export_analytics_csv(self, path=None):
+        """
+        Mengekspor ringkasan analitik platform ke file CSV.
+
+        Args:
+            path (str, optional): Lokasi file CSV. Default "analytics_export.csv"
+                di direktori kerja saat ini.
+
+        Returns:
+            str: Path file CSV yang berhasil dibuat.
+        """
+        import csv
+
+        if path is None:
+            path = "analytics_export.csv"
+
+        total_likes    = sum(len(p["likes"]) for p in self.posts)
+        total_comments = sum(len(p.get("comments", [])) for p in self.posts)
+
+        with open(path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(["Metrik", "Nilai"])
+            writer.writerow(["Total User", len(self.users)])
+            writer.writerow(["Total Post", len(self.posts)])
+            writer.writerow(["Total Story", len(self.stories)])
+            writer.writerow(["Total Like", total_likes])
+            writer.writerow(["Total Komentar", total_comments])
+            writer.writerow(["Total Pelanggaran", len(self.violation_log)])
+            writer.writerow([])
+            writer.writerow(["Username", "Post", "Likes Diterima", "Komentar Diterima"])
+            for uname in self.users:
+                u_posts = [p for p in self.posts if p["username"] == uname]
+                u_likes = sum(len(p["likes"]) for p in u_posts)
+                u_cmts  = sum(len(p.get("comments", [])) for p in u_posts)
+                writer.writerow([uname, len(u_posts), u_likes, u_cmts])
+
+        return os.path.abspath(path)
