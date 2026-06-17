@@ -147,7 +147,3 @@ class KizunaGUI:
         tk.Button(input_frame, text="Posting", bg="#ffc0cb", bd=0, padx=15).pack(side="right", padx=10, pady=5)
 
         tk.Label(content, text="[Area Feed User]", font=("Segoe UI", 16), bg="#f9f9f9", fg="#888").pack(expand=True)
-
-if __name__ == "__main__":
-    app = KizunaGUI()
-    app.root.mainloop()
